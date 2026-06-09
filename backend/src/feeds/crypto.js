@@ -76,6 +76,8 @@ function mockOHLCV(pair, timeframe, limit) {
 let exchange;
 let useMock = false; // se activa permanentemente si Binance falla
 
+export function isMockActive() { return useMock; }
+
 const MAX_FAILURES = 3;
 let consecutiveFailures = 0;
 

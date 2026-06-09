@@ -7,6 +7,7 @@ import { existsSync } from 'fs';
 import { WebSocketServer } from 'ws';
 import { startScanner, getAllSignals, onSignalChange } from './scanner.js';
 import { getSignalsHistory } from './db.js';
+import { isMockActive } from './feeds/crypto.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 3001);
@@ -35,7 +36,12 @@ app.get('/api/signals/history', (req, res) => {
 });
 
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', clients: wss.clients.size, env: IS_PROD ? 'production' : 'development' });
+  res.json({
+    status: 'ok',
+    clients: wss.clients.size,
+    env: IS_PROD ? 'production' : 'development',
+    cryptoSource: isMockActive() ? 'mock' : 'binance'
+  });
 });
 
 // Servir frontend en producción (Railway: un solo servicio)
@@ -63,7 +69,7 @@ wss.on('connection', (ws) => {
 
   const current = getAllSignals();
   if (current.length) {
-    ws.send(JSON.stringify({ type: 'signals_update', timestamp: Date.now(), data: current }));
+    ws.send(JSON.stringify({ type: 'signals_update', timestamp: Date.now(), data: current, cryptoSource: isMockActive() ? 'mock' : 'binance' }));
   }
 
   ws.on('close', () => { clients.delete(ws); console.log(`[ws] Desconectado. Total: ${clients.size}`); });
@@ -71,7 +77,7 @@ wss.on('connection', (ws) => {
 });
 
 onSignalChange((signals) => {
-  broadcast({ type: 'signals_update', timestamp: Date.now(), data: signals });
+  broadcast({ type: 'signals_update', timestamp: Date.now(), data: signals, cryptoSource: isMockActive() ? 'mock' : 'binance' });
 });
 
 server.listen(PORT, () => {

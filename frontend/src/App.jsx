@@ -12,7 +12,7 @@ const DEFAULT_FILTERS = {
 };
 
 export default function App() {
-  const { signals, connected, lastUpdate } = useScanner();
+  const { signals, connected, lastUpdate, cryptoSource } = useScanner();
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
 
   const filtered = useMemo(() => {
@@ -35,14 +35,24 @@ export default function App() {
             <p className="text-xs text-gray-500">Scalping · Cripto · Forex · Futuros</p>
           </div>
 
-          {/* Indicador de conexión */}
-          <div className="flex items-center gap-2">
+          {/* Indicador de conexión + fuente crypto */}
+          <div className="flex items-center gap-3">
+            {cryptoSource && (
+              <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium border ${
+                cryptoSource === 'binance'
+                  ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30'
+                  : 'bg-gray-700/50 text-gray-400 border-gray-600/40'
+              }`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${cryptoSource === 'binance' ? 'bg-yellow-400' : 'bg-gray-500'}`} />
+                Crypto: {cryptoSource === 'binance' ? 'Binance' : 'Mock'}
+              </span>
+            )}
             {connected ? (
               <>
                 <span className="h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse" />
                 <span className="text-sm text-green-400 font-medium">En vivo</span>
                 {lastUpdate && (
-                  <span className="text-xs text-gray-600 ml-1">
+                  <span className="text-xs text-gray-600">
                     {lastUpdate.toLocaleTimeString()}
                   </span>
                 )}

@@ -6,21 +6,18 @@ const WS_URL = import.meta.env.DEV
   : `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`;
 const MAX_BACKOFF = 30000;
 
-/**
- * Hook que gestiona la conexión WebSocket al backend del scanner.
- * Reconexión automática con backoff exponencial: 1s, 2s, 4s, … máx 30s.
- */
 export function useScanner() {
   const [signals, setSignals] = useState([]);
   const [connected, setConnected] = useState(false);
   const [lastUpdate, setLastUpdate] = useState(null);
+  const [cryptoSource, setCryptoSource] = useState(null); // 'binance' | 'mock' | null
 
   const wsRef = useRef(null);
   const retryRef = useRef(1000);
   const timeoutRef = useRef(null);
   const unmountedRef = useRef(false);
 
-  const mergeSignals = useCallback((incoming) => {
+  const mergeSignals = useCallback((incoming, source) => {
     setSignals(prev => {
       const map = new Map(prev.map(s => [`${s.pair}:${s.timeframe}`, s]));
       for (const s of incoming) {
@@ -29,6 +26,7 @@ export function useScanner() {
       return Array.from(map.values());
     });
     setLastUpdate(new Date());
+    if (source) setCryptoSource(source);
   }, []);
 
   const connect = useCallback(() => {
@@ -40,14 +38,14 @@ export function useScanner() {
     ws.onopen = () => {
       if (unmountedRef.current) { ws.close(); return; }
       setConnected(true);
-      retryRef.current = 1000; // reset backoff
+      retryRef.current = 1000;
     };
 
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
         if (msg.type === 'signals_update' && Array.isArray(msg.data)) {
-          mergeSignals(msg.data);
+          mergeSignals(msg.data, msg.cryptoSource ?? null);
         }
       } catch (e) {
         console.error('[useScanner] Parse error:', e);
@@ -62,9 +60,7 @@ export function useScanner() {
       timeoutRef.current = setTimeout(connect, delay);
     };
 
-    ws.onerror = () => {
-      ws.close();
-    };
+    ws.onerror = () => { ws.close(); };
   }, [mergeSignals]);
 
   useEffect(() => {
@@ -77,5 +73,5 @@ export function useScanner() {
     };
   }, [connect]);
 
-  return { signals, connected, lastUpdate };
+  return { signals, connected, lastUpdate, cryptoSource };
 }
