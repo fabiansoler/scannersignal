@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-const WS_URL = 'ws://localhost:3001';
+// En dev apunta directo al backend; en prod deriva host y protocolo del browser (wss en HTTPS)
+const WS_URL = import.meta.env.DEV
+  ? 'ws://localhost:3001'
+  : `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`;
 const MAX_BACKOFF = 30000;
 
 /**
