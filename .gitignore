@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Environment — nunca commitear claves reales
+backend/.env
+
+# SQLite DB generada en runtime
+backend/signals.db
+backend/signals.db-shm
+backend/signals.db-wal
+
+# Logs de desarrollo
+*.log
+
+# Vite build output
+frontend/dist/
+
+# Screenshot helper (solo para desarrollo local)
+screenshot.mjs
+
+# OS
+.DS_Store
+Thumbs.db
