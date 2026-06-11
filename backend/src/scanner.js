@@ -1,9 +1,3 @@
-/**
- * Motor principal de escaneo.
- * Escanea todos los pares configurados, calcula indicadores y score,
- * y emite actualizaciones cuando cambia el score o la dirección.
- */
-
 import { calculateIndicators } from './indicators.js';
 import { calcScore } from './scoring.js';
 import { sendAlert } from './alerts.js';
@@ -17,10 +11,7 @@ export const PAIRS = {
   futures: ['NQ1!', 'ES1!', 'CL1!']
 };
 
-// Estado actual de señales: Map<`${pair}:${timeframe}`, signalObject>
 const signalState = new Map();
-
-// Callbacks registrados para notificar cambios
 const changeListeners = [];
 
 export function onSignalChange(cb) {
@@ -52,7 +43,7 @@ async function scanPair(pair, market, timeframe) {
   const minScore = Number(process.env.MIN_SCORE_PUBLISH ?? 50);
   if (score < minScore) return null;
 
-  const price = candles[candles.length - 1][4]; // último close
+  const price = candles[candles.length - 1][4];
 
   return {
     pair,
@@ -93,7 +84,7 @@ async function runScan(timeframe) {
           saveSignal(signal);
         }
       } catch (err) {
-        console.error(`[scanner] Error en ${pair}:`, err.message);
+        console.error(`[scanner] Sin datos para ${pair}: ${err.message}`);
       }
     })
   );
@@ -115,14 +106,11 @@ export function startScanner() {
 
   console.log(`[scanner] Iniciando scanner — timeframe=${timeframe} interval=${interval}ms`);
 
-  // Primer escaneo inmediato
   runScan(timeframe).then(results => {
     console.log(`[scanner] Escaneo inicial: ${results.length} señales activas`);
   });
 
   setInterval(() => {
-    forexFeed.advanceCycle();
-    cryptoFeed.advanceCycle();
     runScan(timeframe).catch(err => console.error('[scanner] Error en ciclo:', err.message));
   }, interval);
 }

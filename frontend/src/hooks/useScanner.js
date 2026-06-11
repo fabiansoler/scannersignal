@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-// En dev apunta directo al backend; en prod deriva host y protocolo del browser (wss en HTTPS)
 const WS_URL = import.meta.env.DEV
   ? 'ws://localhost:3001'
   : `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`;
@@ -10,14 +9,13 @@ export function useScanner() {
   const [signals, setSignals] = useState([]);
   const [connected, setConnected] = useState(false);
   const [lastUpdate, setLastUpdate] = useState(null);
-  const [cryptoSource, setCryptoSource] = useState(null); // 'binance' | 'mock' | null
 
   const wsRef = useRef(null);
   const retryRef = useRef(1000);
   const timeoutRef = useRef(null);
   const unmountedRef = useRef(false);
 
-  const mergeSignals = useCallback((incoming, source) => {
+  const mergeSignals = useCallback((incoming) => {
     setSignals(prev => {
       const map = new Map(prev.map(s => [`${s.pair}:${s.timeframe}`, s]));
       for (const s of incoming) {
@@ -26,7 +24,6 @@ export function useScanner() {
       return Array.from(map.values());
     });
     setLastUpdate(new Date());
-    if (source) setCryptoSource(source);
   }, []);
 
   const connect = useCallback(() => {
@@ -45,7 +42,7 @@ export function useScanner() {
       try {
         const msg = JSON.parse(event.data);
         if (msg.type === 'signals_update' && Array.isArray(msg.data)) {
-          mergeSignals(msg.data, msg.cryptoSource ?? null);
+          mergeSignals(msg.data);
         }
       } catch (e) {
         console.error('[useScanner] Parse error:', e);
@@ -73,5 +70,5 @@ export function useScanner() {
     };
   }, [connect]);
 
-  return { signals, connected, lastUpdate, cryptoSource };
+  return { signals, connected, lastUpdate };
 }
