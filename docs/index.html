@@ -391,7 +391,7 @@
       <p>Monorepo con dos módulos independientes que corren como un único servicio en producción:</p>
 
       <div class="flow">
-        <div class="flow-node">Feeds<br><small>Binance / Yahoo</small></div>
+        <div class="flow-node">Feeds<br><small>Yahoo Finance</small></div>
         <div class="flow-arrow">→</div>
         <div class="flow-node">Scanner<br><small>cada 10s</small></div>
         <div class="flow-arrow">→</div>
@@ -413,7 +413,7 @@
             <tr><td><code>scanner.js</code></td><td>backend/src/</td><td>Orquesta el escaneo periódico de todos los pares</td></tr>
             <tr><td><code>indicators.js</code></td><td>backend/src/</td><td>Calcula RSI, EMA, MACD y volumen relativo sobre velas OHLCV</td></tr>
             <tr><td><code>scoring.js</code></td><td>backend/src/</td><td>Combina indicadores en score 0–100 y determina dirección</td></tr>
-            <tr><td><code>feeds/crypto.js</code></td><td>backend/src/</td><td>Obtiene velas reales de Binance vía ccxt</td></tr>
+            <tr><td><code>feeds/crypto.js</code></td><td>backend/src/</td><td>Obtiene velas reales de cripto vía Yahoo Finance v8 (con caché 60s)</td></tr>
             <tr><td><code>feeds/forex.js</code></td><td>backend/src/</td><td>Obtiene velas reales de forex/futuros vía Yahoo Finance v8 (con caché 60s)</td></tr>
             <tr><td><code>alerts.js</code></td><td>backend/src/</td><td>Envía alertas a Telegram con cooldown por par</td></tr>
             <tr><td><code>db.js</code></td><td>backend/src/</td><td>SQLite: guarda historial de señales y expone endpoint REST</td></tr>
@@ -483,7 +483,7 @@
             <tr>
               <td><span class="badge badge-yellow">Crypto</span></td>
               <td>BTC/USDT · ETH/USDT · SOL/USDT · BNB/USDT · XRP/USDT</td>
-              <td>Binance (vía ccxt) — datos reales</td>
+              <td>Yahoo Finance v8 — datos reales</td>
             </tr>
             <tr>
               <td><span class="badge badge-blue">Forex</span></td>
@@ -631,24 +631,18 @@
         demás continúan sin interrupción (<code>Promise.allSettled</code>).
       </p>
 
-      <h3>Crypto — Binance</h3>
       <p>
-        Se conecta a Binance vía la librería <code>ccxt</code> (<code>feeds/crypto.js</code>). Obtiene
-        velas OHLCV con <code>fetchOHLCV</code> y el precio actual con <code>fetchTicker</code>.
-        No requiere API key para datos públicos de mercado.
-      </p>
-
-      <h3>Forex / Futuros — Yahoo Finance</h3>
-      <p>
-        Se conecta a la API v8 de Yahoo Finance (<code>feeds/forex.js</code>) usando <code>fetch</code>
-        nativo de Node — sin librerías externas ni API key. Cubre los 5 pares de forex y los 3 de futuros.
-        Incluye un <strong>caché de 60 segundos por par</strong> para no exceder los límites de Yahoo
-        (las velas M5 solo cierran cada 5 minutos, así que no tiene sentido pedir más seguido).
+        <strong>Una sola fuente para todos los mercados:</strong> Yahoo Finance v8. Tanto cripto
+        (<code>feeds/crypto.js</code>) como forex y futuros (<code>feeds/forex.js</code>) se conectan
+        al mismo endpoint REST usando <code>fetch</code> nativo de Node — sin librerías externas ni
+        API key. Cada feed mantiene su propio mapa de símbolos y un <strong>caché de 60 segundos por
+        par</strong> para no exceder los límites de Yahoo (las velas M5 solo cierran cada 5 minutos,
+        así que no tiene sentido pedir más seguido).
       </p>
 
       <div class="callout callout-warning">
         <span class="callout-icon">⚠️</span>
-        <span>En redes corporativas con proxy SSL es necesario setear <code>NODE_TLS_REJECT_UNAUTHORIZED=0</code> en <code>backend/.env</code>, de lo contrario tanto Binance como Yahoo Finance fallan con error de certificado.</span>
+        <span>En redes corporativas con proxy SSL es necesario setear <code>NODE_TLS_REJECT_UNAUTHORIZED=0</code> en <code>backend/.env</code>, de lo contrario Yahoo Finance falla con error de certificado.</span>
       </div>
     </section>
 
@@ -656,8 +650,8 @@
     <section id="apis">
       <h2>APIs externas</h2>
       <p>
-        El scanner consume dos APIs públicas de datos de mercado. Ninguna requiere autenticación
-        para los datos que usa la aplicación.
+        El scanner consume <strong>una única API pública</strong> de datos de mercado: Yahoo Finance v8.
+        Cubre los tres mercados (cripto, forex y futuros) y no requiere autenticación.
       </p>
 
       <div class="table-wrap">
@@ -667,14 +661,8 @@
           </thead>
           <tbody>
             <tr>
-              <td><strong>Binance</strong></td>
-              <td>Velas OHLCV y precio de los 5 pares cripto</td>
-              <td>Librería <code>ccxt</code></td>
-              <td>No requiere</td>
-            </tr>
-            <tr>
               <td><strong>Yahoo Finance v8</strong></td>
-              <td>Velas OHLCV de forex (5) y futuros (3)</td>
+              <td>Velas OHLCV de cripto (5), forex (5) y futuros (3)</td>
               <td><code>fetch</code> nativo (REST)</td>
               <td>No requiere</td>
             </tr>
@@ -682,29 +670,14 @@
         </table>
       </div>
 
-      <h3>Binance (vía ccxt)</h3>
-      <p>
-        <code>ccxt</code> abstrae la conexión a Binance. Los timeframes del scanner se mapean a los
-        intervalos del exchange (<code>M1→1m</code>, <code>M5→5m</code>, <code>M15→15m</code>).
-      </p>
-      <pre><code><span class="comment">// feeds/crypto.js</span>
-<span class="kw">import</span> ccxt <span class="kw">from</span> <span class="str">'ccxt'</span>
-
-<span class="kw">const</span> exchange = <span class="kw">new</span> ccxt.<span class="fn">binance</span>({ enableRateLimit: <span class="kw">true</span>, timeout: <span class="num">8000</span> })
-
-<span class="comment">// velas OHLCV: [timestamp, open, high, low, close, volume]</span>
-<span class="kw">await</span> exchange.<span class="fn">fetchOHLCV</span>(<span class="str">'BTC/USDT'</span>, <span class="str">'5m'</span>, <span class="kw">undefined</span>, <span class="num">100</span>)
-
-<span class="comment">// precio actual</span>
-<span class="kw">const</span> ticker = <span class="kw">await</span> exchange.<span class="fn">fetchTicker</span>(<span class="str">'BTC/USDT'</span>)  <span class="comment">// ticker.last</span></code></pre>
-
-      <h3>Yahoo Finance v8</h3>
+      <h3>Endpoint Yahoo Finance v8</h3>
       <p>
         Endpoint REST público de gráficos. Se llama directamente con <code>fetch</code> y se mapea cada
-        par interno a su símbolo de Yahoo: forex con sufijo <code>=X</code> (<code>EURUSD=X</code>) y
-        futuros con sufijo <code>=F</code> (<code>NQ=F</code>, <code>ES=F</code>, <code>CL=F</code>).
+        par interno a su símbolo de Yahoo. La respuesta trae <code>timestamps</code> e
+        <code>indicators.quote[0]</code> (open/high/low/close/volume) que se transforman al formato OHLCV
+        del scanner: <code>[timestamp, open, high, low, close, volume]</code>.
       </p>
-      <pre><code><span class="comment">// feeds/forex.js</span>
+      <pre><code><span class="comment">// feeds/crypto.js y feeds/forex.js comparten esta misma llamada</span>
 <span class="kw">const</span> url =
   <span class="str">`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}`</span> +
   <span class="str">`?interval=${interval}&range=7d`</span>
@@ -714,12 +687,22 @@
 })
 <span class="kw">const</span> json = <span class="kw">await</span> res.<span class="fn">json</span>()
 <span class="kw">const</span> result = json.chart.result[<span class="num">0</span>]   <span class="comment">// timestamps + indicators.quote[0]</span></code></pre>
+      <p>
+        Los timeframes del scanner se mapean a los intervalos de Yahoo:
+        <code>M1→1m</code>, <code>M5→5m</code>, <code>M15→15m</code>.
+      </p>
 
-      <h3>Mapa de símbolos (forex / futuros)</h3>
+      <h3>Mapa de símbolos</h3>
+      <p>Cada mercado usa un sufijo distinto en el símbolo de Yahoo: cripto <code>-USD</code>, forex <code>=X</code>, futuros <code>=F</code>.</p>
       <div class="table-wrap">
         <table>
           <thead><tr><th>Par interno</th><th>Símbolo Yahoo</th><th>Mercado</th></tr></thead>
           <tbody>
+            <tr><td><code>BTC/USDT</code></td><td><code>BTC-USD</code></td><td>Cripto — Bitcoin</td></tr>
+            <tr><td><code>ETH/USDT</code></td><td><code>ETH-USD</code></td><td>Cripto — Ethereum</td></tr>
+            <tr><td><code>SOL/USDT</code></td><td><code>SOL-USD</code></td><td>Cripto — Solana</td></tr>
+            <tr><td><code>BNB/USDT</code></td><td><code>BNB-USD</code></td><td>Cripto — BNB</td></tr>
+            <tr><td><code>XRP/USDT</code></td><td><code>XRP-USD</code></td><td>Cripto — XRP</td></tr>
             <tr><td><code>EUR/USD</code></td><td><code>EURUSD=X</code></td><td>Forex</td></tr>
             <tr><td><code>GBP/USD</code></td><td><code>GBPUSD=X</code></td><td>Forex</td></tr>
             <tr><td><code>USD/JPY</code></td><td><code>USDJPY=X</code></td><td>Forex</td></tr>
@@ -734,7 +717,7 @@
 
       <div class="callout callout-info">
         <span class="callout-icon">ℹ️</span>
-        <span>Yahoo Finance no publica un contrato de API oficial; el endpoint v8 es de uso público pero no documentado formalmente. El caché de 60 s y el <code>User-Agent</code> minimizan el riesgo de rate-limiting.</span>
+        <span>Yahoo Finance no publica un contrato de API oficial; el endpoint v8 es de uso público pero no documentado formalmente. El caché de 60 s y el <code>User-Agent</code> minimizan el riesgo de rate-limiting. El precio de cripto en Yahoo (par <code>-USD</code>) puede diferir ligeramente del de Binance (par <code>USDT</code>) por ser de otra fuente.</span>
       </div>
     </section>
 
@@ -916,7 +899,7 @@
           <tbody>
             <tr><td>🟢 <strong>En vivo</strong></td><td>WS conectado</td><td>Recibiendo actualizaciones en tiempo real</td></tr>
             <tr><td>🔴 <strong>Desconectado — reconectando…</strong></td><td>WS caído</td><td>Intentando reconectar con backoff exponencial</td></tr>
-            <tr><td>🟡 <strong>Sin señales disponibles</strong></td><td>WS conectado, sin datos</td><td>Conectado pero ningún feed devolvió señales — revisar acceso a Binance / Yahoo Finance</td></tr>
+            <tr><td>🟡 <strong>Sin señales disponibles</strong></td><td>WS conectado, sin datos</td><td>Conectado pero ningún feed devolvió señales — revisar acceso a Yahoo Finance</td></tr>
           </tbody>
         </table>
       </div>
@@ -937,9 +920,7 @@
             <tr><td><code>MIN_SCORE_ALERT</code></td><td><code>80</code></td><td>Score mínimo para disparar alerta Telegram</td></tr>
             <tr><td><code>TELEGRAM_BOT_TOKEN</code></td><td>—</td><td>Token del bot (@BotFather). Opcional — sin él, alertas desactivadas</td></tr>
             <tr><td><code>TELEGRAM_CHAT_ID</code></td><td>—</td><td>ID del chat destino de las alertas</td></tr>
-            <tr><td><code>BINANCE_API_KEY</code></td><td>—</td><td>Opcional — datos públicos no requieren autenticación</td></tr>
-            <tr><td><code>BINANCE_SECRET</code></td><td>—</td><td>Opcional</td></tr>
-            <tr><td><code>NODE_TLS_REJECT_UNAUTHORIZED</code></td><td>—</td><td>Setear a <code>0</code> en redes corporativas con proxy SSL</td></tr>
+            <tr><td><code>NODE_TLS_REJECT_UNAUTHORIZED</code></td><td>—</td><td>Setear a <code>0</code> en redes corporativas con proxy SSL (necesario para alcanzar Yahoo Finance)</td></tr>
           </tbody>
         </table>
       </div>
@@ -987,7 +968,7 @@ healthcheckTimeout = <span class="num">30</span></code></pre>
           <div class="flow-node">npm run build</div>
         </div>
         <div style="padding-left:1rem; color:var(--muted); font-size:0.8rem; display:flex; flex-direction:column; gap:0.3rem">
-          <div>→ <code>npm install --prefix backend</code> — instala Express, ccxt, etc.</div>
+          <div>→ <code>npm install --prefix backend</code> — instala Express, ws, etc.</div>
           <div>→ <code>npm install --prefix frontend</code> — instala React, Vite, Tailwind</div>
           <div>→ <code>npm run build --prefix frontend</code> — compila a <code>frontend/dist/</code></div>
         </div>
