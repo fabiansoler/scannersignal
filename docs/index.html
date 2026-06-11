@@ -307,6 +307,7 @@
       <li><a href="#indicadores">Indicadores técnicos</a></li>
       <li><a href="#scoring">Score de confluencia</a></li>
       <li><a href="#feeds">Feeds de mercado</a></li>
+      <li><a href="#apis">APIs externas</a></li>
       <li><a href="#websocket">WebSocket</a></li>
       <li><a href="#alertas">Alertas Telegram</a></li>
       <li><a href="#base-datos">Base de datos</a></li>
@@ -390,7 +391,7 @@
       <p>Monorepo con dos módulos independientes que corren como un único servicio en producción:</p>
 
       <div class="flow">
-        <div class="flow-node">Feeds<br><small>Binance / Mock</small></div>
+        <div class="flow-node">Feeds<br><small>Binance / Yahoo</small></div>
         <div class="flow-arrow">→</div>
         <div class="flow-node">Scanner<br><small>cada 10s</small></div>
         <div class="flow-arrow">→</div>
@@ -412,8 +413,8 @@
             <tr><td><code>scanner.js</code></td><td>backend/src/</td><td>Orquesta el escaneo periódico de todos los pares</td></tr>
             <tr><td><code>indicators.js</code></td><td>backend/src/</td><td>Calcula RSI, EMA, MACD y volumen relativo sobre velas OHLCV</td></tr>
             <tr><td><code>scoring.js</code></td><td>backend/src/</td><td>Combina indicadores en score 0–100 y determina dirección</td></tr>
-            <tr><td><code>feeds/crypto.js</code></td><td>backend/src/</td><td>Obtiene velas de Binance via ccxt; fallback a mock si no hay red</td></tr>
-            <tr><td><code>feeds/forex.js</code></td><td>backend/src/</td><td>Mock de forex/futuros con tendencias direccionales realistas</td></tr>
+            <tr><td><code>feeds/crypto.js</code></td><td>backend/src/</td><td>Obtiene velas reales de Binance vía ccxt</td></tr>
+            <tr><td><code>feeds/forex.js</code></td><td>backend/src/</td><td>Obtiene velas reales de forex/futuros vía Yahoo Finance v8 (con caché 60s)</td></tr>
             <tr><td><code>alerts.js</code></td><td>backend/src/</td><td>Envía alertas a Telegram con cooldown por par</td></tr>
             <tr><td><code>db.js</code></td><td>backend/src/</td><td>SQLite: guarda historial de señales y expone endpoint REST</td></tr>
             <tr><td><code>index.js</code></td><td>backend/src/</td><td>Express + WebSocket server; sirve el frontend en producción</td></tr>
@@ -451,7 +452,6 @@
 {
   <span class="key">"type"</span>: <span class="str">"signals_update"</span>,
   <span class="key">"timestamp"</span>: <span class="num">1749123456789</span>,
-  <span class="key">"cryptoSource"</span>: <span class="str">"binance"</span>,  <span class="comment">// o "mock"</span>
   <span class="key">"data"</span>: [
     {
       <span class="key">"pair"</span>:       <span class="str">"BTC/USDT"</span>,
@@ -483,17 +483,17 @@
             <tr>
               <td><span class="badge badge-yellow">Crypto</span></td>
               <td>BTC/USDT · ETH/USDT · SOL/USDT · BNB/USDT · XRP/USDT</td>
-              <td>Binance (ccxt) → fallback mock</td>
+              <td>Binance (vía ccxt) — datos reales</td>
             </tr>
             <tr>
               <td><span class="badge badge-blue">Forex</span></td>
               <td>EUR/USD · GBP/USD · USD/JPY · GBP/JPY · AUD/USD</td>
-              <td>Mock tendencial (preparado para OANDA)</td>
+              <td>Yahoo Finance v8 — datos reales</td>
             </tr>
             <tr>
               <td><span class="badge badge-purple">Futuros</span></td>
               <td>NQ1! · ES1! · CL1!</td>
-              <td>Mock tendencial (preparado para Tradovate)</td>
+              <td>Yahoo Finance v8 — datos reales</td>
             </tr>
           </tbody>
         </table>
@@ -625,36 +625,116 @@
     <!-- Feeds -->
     <section id="feeds">
       <h2>Feeds de mercado</h2>
-
-      <h3>Crypto — Binance con fallback automático</h3>
       <p>
-        Se conecta a Binance vía <code>ccxt</code>. Si la conexión falla 3 veces consecutivas,
-        activa un <strong>circuit breaker</strong> que cambia automáticamente a datos mock sin
-        interrumpir el scanner. El estado actual (<code>binance</code> o <code>mock</code>) se
-        informa en el header de la UI y en <code>/api/health</code>.
+        Todos los datos del scanner son <strong>reales</strong>, obtenidos de APIs públicas de mercado.
+        No hay datos simulados: si una fuente no responde, ese par no genera señal en ese ciclo y los
+        demás continúan sin interrupción (<code>Promise.allSettled</code>).
       </p>
 
-      <div class="flow" style="font-size:0.8rem">
-        <div class="flow-node">Solicitud OHLCV</div>
-        <div class="flow-arrow">→</div>
-        <div class="flow-node">¿Circuit abierto?</div>
-        <div class="flow-arrow">→ No →</div>
-        <div class="flow-node">Binance API</div>
-        <div class="flow-arrow">→ Falla ×3 →</div>
-        <div class="flow-node">Mock activo</div>
+      <h3>Crypto — Binance</h3>
+      <p>
+        Se conecta a Binance vía la librería <code>ccxt</code> (<code>feeds/crypto.js</code>). Obtiene
+        velas OHLCV con <code>fetchOHLCV</code> y el precio actual con <code>fetchTicker</code>.
+        No requiere API key para datos públicos de mercado.
+      </p>
+
+      <h3>Forex / Futuros — Yahoo Finance</h3>
+      <p>
+        Se conecta a la API v8 de Yahoo Finance (<code>feeds/forex.js</code>) usando <code>fetch</code>
+        nativo de Node — sin librerías externas ni API key. Cubre los 5 pares de forex y los 3 de futuros.
+        Incluye un <strong>caché de 60 segundos por par</strong> para no exceder los límites de Yahoo
+        (las velas M5 solo cierran cada 5 minutos, así que no tiene sentido pedir más seguido).
+      </p>
+
+      <div class="callout callout-warning">
+        <span class="callout-icon">⚠️</span>
+        <span>En redes corporativas con proxy SSL es necesario setear <code>NODE_TLS_REJECT_UNAUTHORIZED=0</code> en <code>backend/.env</code>, de lo contrario tanto Binance como Yahoo Finance fallan con error de certificado.</span>
+      </div>
+    </section>
+
+    <!-- APIs externas -->
+    <section id="apis">
+      <h2>APIs externas</h2>
+      <p>
+        El scanner consume dos APIs públicas de datos de mercado. Ninguna requiere autenticación
+        para los datos que usa la aplicación.
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>API</th><th>Usada para</th><th>Acceso</th><th>Auth</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Binance</strong></td>
+              <td>Velas OHLCV y precio de los 5 pares cripto</td>
+              <td>Librería <code>ccxt</code></td>
+              <td>No requiere</td>
+            </tr>
+            <tr>
+              <td><strong>Yahoo Finance v8</strong></td>
+              <td>Velas OHLCV de forex (5) y futuros (3)</td>
+              <td><code>fetch</code> nativo (REST)</td>
+              <td>No requiere</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
-      <h3>Forex / Futuros — Mock tendencial</h3>
+      <h3>Binance (vía ccxt)</h3>
       <p>
-        Genera velas sintéticas con una <strong>fase tendencial de 40 velas</strong> que hace que
-        RSI, EMA y MACD se alineen en la misma dirección. La dirección rota cada ~60 segundos
-        (6 ciclos de escaneo) para simular cambios de tendencia. Preparado para reemplazar con
-        OANDA o Tradovate.
+        <code>ccxt</code> abstrae la conexión a Binance. Los timeframes del scanner se mapean a los
+        intervalos del exchange (<code>M1→1m</code>, <code>M5→5m</code>, <code>M15→15m</code>).
       </p>
+      <pre><code><span class="comment">// feeds/crypto.js</span>
+<span class="kw">import</span> ccxt <span class="kw">from</span> <span class="str">'ccxt'</span>
 
-      <div class="callout callout-tip">
-        <span class="callout-icon">💡</span>
-        <span>Para conectar OANDA: implementar <code>fetchOHLCV</code> real en <code>feeds/forex.js</code> llamando a <code>https://api-fxtrade.oanda.com/v3/instruments/{pair}/candles</code>.</span>
+<span class="kw">const</span> exchange = <span class="kw">new</span> ccxt.<span class="fn">binance</span>({ enableRateLimit: <span class="kw">true</span>, timeout: <span class="num">8000</span> })
+
+<span class="comment">// velas OHLCV: [timestamp, open, high, low, close, volume]</span>
+<span class="kw">await</span> exchange.<span class="fn">fetchOHLCV</span>(<span class="str">'BTC/USDT'</span>, <span class="str">'5m'</span>, <span class="kw">undefined</span>, <span class="num">100</span>)
+
+<span class="comment">// precio actual</span>
+<span class="kw">const</span> ticker = <span class="kw">await</span> exchange.<span class="fn">fetchTicker</span>(<span class="str">'BTC/USDT'</span>)  <span class="comment">// ticker.last</span></code></pre>
+
+      <h3>Yahoo Finance v8</h3>
+      <p>
+        Endpoint REST público de gráficos. Se llama directamente con <code>fetch</code> y se mapea cada
+        par interno a su símbolo de Yahoo: forex con sufijo <code>=X</code> (<code>EURUSD=X</code>) y
+        futuros con sufijo <code>=F</code> (<code>NQ=F</code>, <code>ES=F</code>, <code>CL=F</code>).
+      </p>
+      <pre><code><span class="comment">// feeds/forex.js</span>
+<span class="kw">const</span> url =
+  <span class="str">`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}`</span> +
+  <span class="str">`?interval=${interval}&range=7d`</span>
+
+<span class="kw">const</span> res = <span class="kw">await</span> <span class="fn">fetch</span>(url, {
+  headers: { <span class="str">'User-Agent'</span>: <span class="str">'Mozilla/5.0'</span> }   <span class="comment">// Yahoo rechaza sin User-Agent</span>
+})
+<span class="kw">const</span> json = <span class="kw">await</span> res.<span class="fn">json</span>()
+<span class="kw">const</span> result = json.chart.result[<span class="num">0</span>]   <span class="comment">// timestamps + indicators.quote[0]</span></code></pre>
+
+      <h3>Mapa de símbolos (forex / futuros)</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Par interno</th><th>Símbolo Yahoo</th><th>Mercado</th></tr></thead>
+          <tbody>
+            <tr><td><code>EUR/USD</code></td><td><code>EURUSD=X</code></td><td>Forex</td></tr>
+            <tr><td><code>GBP/USD</code></td><td><code>GBPUSD=X</code></td><td>Forex</td></tr>
+            <tr><td><code>USD/JPY</code></td><td><code>USDJPY=X</code></td><td>Forex</td></tr>
+            <tr><td><code>GBP/JPY</code></td><td><code>GBPJPY=X</code></td><td>Forex</td></tr>
+            <tr><td><code>AUD/USD</code></td><td><code>AUDUSD=X</code></td><td>Forex</td></tr>
+            <tr><td><code>NQ1!</code></td><td><code>NQ=F</code></td><td>Futuros — Nasdaq 100</td></tr>
+            <tr><td><code>ES1!</code></td><td><code>ES=F</code></td><td>Futuros — S&amp;P 500</td></tr>
+            <tr><td><code>CL1!</code></td><td><code>CL=F</code></td><td>Futuros — Crudo WTI</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout callout-info">
+        <span class="callout-icon">ℹ️</span>
+        <span>Yahoo Finance no publica un contrato de API oficial; el endpoint v8 es de uso público pero no documentado formalmente. El caché de 60 s y el <code>User-Agent</code> minimizan el riesgo de rate-limiting.</span>
       </div>
     </section>
 
@@ -724,7 +804,7 @@
           <thead><tr><th>Método</th><th>Ruta</th><th>Descripción</th></tr></thead>
           <tbody>
             <tr><td>GET</td><td><code>/api/signals/history?limit=50</code></td><td>Últimas N señales guardadas (máx 500)</td></tr>
-            <tr><td>GET</td><td><code>/api/health</code></td><td>Estado del servidor, clientes WS y fuente crypto</td></tr>
+            <tr><td>GET</td><td><code>/api/health</code></td><td>Estado del servidor, clientes WS conectados y entorno</td></tr>
           </tbody>
         </table>
       </div>
@@ -739,7 +819,7 @@
         <div class="card">
           <div class="card-icon">📌</div>
           <h3>Header</h3>
-          <p>Estado de conexión WS, fuente de datos crypto (Binance/Mock) y hora del último update</p>
+          <p>Estado de conexión WS y hora del último update recibido</p>
         </div>
         <div class="card">
           <div class="card-icon">🔢</div>
@@ -836,8 +916,7 @@
           <tbody>
             <tr><td>🟢 <strong>En vivo</strong></td><td>WS conectado</td><td>Recibiendo actualizaciones en tiempo real</td></tr>
             <tr><td>🔴 <strong>Desconectado — reconectando…</strong></td><td>WS caído</td><td>Intentando reconectar con backoff exponencial</td></tr>
-            <tr><td>🟡 <strong>Crypto: Binance</strong></td><td>Feed real</td><td>Datos de mercado reales desde Binance</td></tr>
-            <tr><td>⚫ <strong>Crypto: Mock</strong></td><td>Feed simulado</td><td>Binance no accesible — usando datos mock</td></tr>
+            <tr><td>🟡 <strong>Sin señales disponibles</strong></td><td>WS conectado, sin datos</td><td>Conectado pero ningún feed devolvió señales — revisar acceso a Binance / Yahoo Finance</td></tr>
           </tbody>
         </table>
       </div>
