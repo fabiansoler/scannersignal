@@ -3,6 +3,7 @@ import { useScanner } from './hooks/useScanner.js';
 import { MetricCards } from './components/MetricCards.jsx';
 import { FilterBar } from './components/FilterBar.jsx';
 import { SignalTable } from './components/SignalTable.jsx';
+import { ConfluencePage } from './pages/ConfluencePage.jsx';
 
 const DEFAULT_FILTERS = {
   market: 'all',
@@ -11,9 +12,15 @@ const DEFAULT_FILTERS = {
   minScore: 50
 };
 
+const TABS = [
+  { id: 'scanner', label: 'Scanner' },
+  { id: 'confluence', label: 'Confluencia' }
+];
+
 export default function App() {
   const { signals, connected, lastUpdate } = useScanner();
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
+  const [tab, setTab] = useState('scanner');
 
   const filtered = useMemo(() => {
     return signals.filter(s => {
@@ -53,17 +60,38 @@ export default function App() {
             )}
           </div>
         </div>
+        <div className="max-w-7xl mx-auto px-4 flex gap-1">
+          {TABS.map(t => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                tab === t.id
+                  ? 'border-blue-500 text-white'
+                  : 'border-transparent text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-6 space-y-5">
-        {connected && signals.length === 0 && (
-          <div className="rounded-lg border border-yellow-800/50 bg-yellow-900/20 px-4 py-3 text-sm text-yellow-400">
-            Sin señales disponibles — verificar conexión con los feeds de mercado.
-          </div>
+        {tab === 'scanner' ? (
+          <>
+            {connected && signals.length === 0 && (
+              <div className="rounded-lg border border-yellow-800/50 bg-yellow-900/20 px-4 py-3 text-sm text-yellow-400">
+                Sin señales disponibles — verificar conexión con los feeds de mercado.
+              </div>
+            )}
+            <MetricCards signals={filtered} />
+            <FilterBar filters={filters} onChange={setFilters} />
+            <SignalTable signals={filtered} />
+          </>
+        ) : (
+          <ConfluencePage />
         )}
-        <MetricCards signals={filtered} />
-        <FilterBar filters={filters} onChange={setFilters} />
-        <SignalTable signals={filtered} />
       </main>
     </div>
   );
