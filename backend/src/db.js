@@ -24,9 +24,49 @@ export function getDb() {
         timestamp INTEGER NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_signals_timestamp ON signals(timestamp DESC);
+
+      CREATE TABLE IF NOT EXISTS position_calculations (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        pair          TEXT,
+        direction     TEXT,
+        entry         REAL,
+        sl            REAL,
+        tp            REAL,
+        position_size REAL,
+        risk_amount   REAL,
+        risk_pct      REAL,
+        capital       REAL,
+        rr            REAL,
+        timestamp     INTEGER
+      );
+      CREATE INDEX IF NOT EXISTS idx_poscalc_timestamp ON position_calculations(timestamp DESC);
     `);
   }
   return db;
+}
+
+export function saveCalculation(data) {
+  const db = getDb();
+  const stmt = db.prepare(`
+    INSERT INTO position_calculations
+      (pair, direction, entry, sl, tp, position_size, risk_amount, risk_pct, capital, rr, timestamp)
+    VALUES
+      (@pair, @direction, @entry, @sl, @tp, @position_size, @risk_amount, @risk_pct, @capital, @rr, @timestamp)
+  `);
+  const info = stmt.run({
+    pair: data.pair ?? null,
+    direction: data.direction ?? null,
+    entry: data.entry ?? null,
+    sl: data.sl ?? null,
+    tp: data.tp ?? null,
+    position_size: data.positionSize ?? null,
+    risk_amount: data.riskAmount ?? null,
+    risk_pct: data.riskPct ?? null,
+    capital: data.capital ?? null,
+    rr: data.rr ?? null,
+    timestamp: data.timestamp ?? Date.now()
+  });
+  return info.lastInsertRowid;
 }
 
 export function saveSignal(signal) {

@@ -8,6 +8,7 @@ import { WebSocketServer } from 'ws';
 import { startScanner, getAllSignals, onSignalChange } from './scanner.js';
 import { calculateConfluence, supportedPairs } from './feeds/confluence.js';
 import { getSignalsHistory } from './db.js';
+import calculatorRouter from './routes/calculator.js';
 
 const CONFLUENCE_INTERVAL_MS = 10_000;
 
@@ -26,6 +27,8 @@ app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   next();
 });
+
+app.use('/api/calculator', calculatorRouter);
 
 app.get('/api/signals/history', (req, res) => {
   const limit = Math.min(Number(req.query.limit ?? 50), 500);
