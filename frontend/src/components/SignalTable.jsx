@@ -4,7 +4,7 @@ import { PositionCalculator } from './PositionCalculator.jsx';
 
 const HEADERS = ['Par', 'Dirección', 'Setup', 'Score', 'Indicadores', 'Precio', 'TF', ''];
 
-export function SignalTable({ signals }) {
+export function SignalTable({ signals, onRegisterTrade }) {
   const sorted = [...signals].sort((a, b) => b.score - a.score);
   const [selectedSignal, setSelectedSignal] = useState(null);
 
@@ -28,7 +28,7 @@ export function SignalTable({ signals }) {
             </thead>
             <tbody>
               {sorted.map(s => (
-                <SignalRow key={`${s.pair}:${s.timeframe}`} signal={s} onSelect={setSelectedSignal} />
+                <SignalRow key={`${s.pair}:${s.timeframe}`} signal={s} onSelect={setSelectedSignal} onRegisterTrade={onRegisterTrade} />
               ))}
             </tbody>
           </table>

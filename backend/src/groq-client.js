@@ -88,6 +88,40 @@ export async function analyzeMarketContext(payload, onChunk) {
   return { analysis, raw };
 }
 
+/**
+ * Streaming genérico de un prompt que debe devolver JSON. Reutilizable por
+ * cualquier módulo (journal, etc.). Invoca onChunk(text) por fragmento.
+ * @returns {Promise<{ analysis: object|null, raw: string }>}
+ */
+export async function streamJSONCompletion(prompt, onChunk) {
+  const groq = getClient();
+  let raw = '';
+
+  try {
+    const stream = await groq.chat.completions.create({
+      model: MODEL,
+      stream: true,
+      temperature: 0.4,
+      response_format: { type: 'json_object' },
+      messages: [{ role: 'user', content: prompt }]
+    });
+
+    for await (const chunk of stream) {
+      const delta = chunk.choices?.[0]?.delta?.content ?? '';
+      if (delta) {
+        raw += delta;
+        if (onChunk) onChunk(delta);
+      }
+    }
+  } catch (err) {
+    throw new GroqUnavailableError(err?.message || 'Fallo al llamar a Groq');
+  }
+
+  let analysis = null;
+  try { analysis = JSON.parse(raw); } catch { analysis = null; }
+  return { analysis, raw };
+}
+
 /** Verifica disponibilidad de Groq con un ping mínimo. */
 export async function checkGroqStatus() {
   if (!process.env.GROQ_API_KEY) {

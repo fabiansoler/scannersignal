@@ -51,6 +51,47 @@ export function getDb() {
         valid_until   INTEGER
       );
       CREATE INDEX IF NOT EXISTS idx_mktctx_generated ON market_context(generated_at DESC);
+
+      CREATE TABLE IF NOT EXISTS trades (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        pair          TEXT NOT NULL,
+        market        TEXT NOT NULL,
+        direction     TEXT NOT NULL,
+        setup         TEXT,
+        timeframe     TEXT,
+        session       TEXT,
+        entry_price   REAL NOT NULL,
+        exit_price    REAL,
+        sl_price      REAL,
+        tp_price      REAL,
+        position_size REAL,
+        risk_amount   REAL,
+        risk_pct      REAL,
+        rr_planned    REAL,
+        rr_actual     REAL,
+        result        TEXT,
+        pnl           REAL,
+        pnl_pct       REAL,
+        entry_time    INTEGER NOT NULL,
+        exit_time     INTEGER,
+        notes         TEXT,
+        emotion       TEXT,
+        followed_plan INTEGER DEFAULT 1,
+        signal_score  INTEGER,
+        ai_feedback   TEXT,
+        ai_feedback_at INTEGER
+      );
+      CREATE INDEX IF NOT EXISTS idx_trades_entry ON trades(entry_time DESC);
+
+      CREATE TABLE IF NOT EXISTS journal_analysis (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        generated_at    INTEGER,
+        trades_analyzed INTEGER,
+        analysis_json   TEXT,
+        period_start    INTEGER,
+        period_end      INTEGER
+      );
+      CREATE INDEX IF NOT EXISTS idx_journalanalysis_generated ON journal_analysis(generated_at DESC);
     `);
 
     // Migración: agregar columna is_high_liquidity si no existe
@@ -138,6 +179,93 @@ export function getLatestMarketContext() {
   if (!row) return null;
   try {
     return JSON.parse(row.analysis_json);
+  } catch {
+    return null;
+  }
+}
+
+// ── Journal de trades ──
+
+const TRADE_COLUMNS = [
+  'pair', 'market', 'direction', 'setup', 'timeframe', 'session',
+  'entry_price', 'exit_price', 'sl_price', 'tp_price', 'position_size',
+  'risk_amount', 'risk_pct', 'rr_planned', 'rr_actual', 'result',
+  'pnl', 'pnl_pct', 'entry_time', 'exit_time', 'notes', 'emotion',
+  'followed_plan', 'signal_score', 'ai_feedback', 'ai_feedback_at'
+];
+
+export function saveTrade(data) {
+  const db = getDb();
+  const cols = TRADE_COLUMNS.filter(c => data[c] !== undefined);
+  const stmt = db.prepare(
+    `INSERT INTO trades (${cols.join(', ')}) VALUES (${cols.map(c => '@' + c).join(', ')})`
+  );
+  const params = {};
+  for (const c of cols) params[c] = data[c] ?? null;
+  return db.transaction(() => stmt.run(params).lastInsertRowid)();
+}
+
+export function updateTrade(id, data) {
+  const db = getDb();
+  const cols = TRADE_COLUMNS.filter(c => data[c] !== undefined);
+  if (!cols.length) return getTradeById(id);
+  const stmt = db.prepare(
+    `UPDATE trades SET ${cols.map(c => `${c} = @${c}`).join(', ')} WHERE id = @id`
+  );
+  const params = { id };
+  for (const c of cols) params[c] = data[c] ?? null;
+  stmt.run(params);
+  return getTradeById(id);
+}
+
+export function getTradeById(id) {
+  return getDb().prepare('SELECT * FROM trades WHERE id = ?').get(id);
+}
+
+export function deleteTrade(id) {
+  return getDb().prepare('DELETE FROM trades WHERE id = ?').run(id).changes;
+}
+
+export function getTrades({ limit = 20, offset = 0, pair, result, dateFrom, dateTo } = {}) {
+  const where = [];
+  const params = [];
+  if (pair) { where.push('pair = ?'); params.push(pair); }
+  if (result) { where.push('result = ?'); params.push(result); }
+  if (dateFrom) { where.push('entry_time >= ?'); params.push(Number(dateFrom)); }
+  if (dateTo) { where.push('entry_time <= ?'); params.push(Number(dateTo)); }
+  const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+  const db = getDb();
+  const total = db.prepare(`SELECT COUNT(*) c FROM trades ${clause}`).get(...params).c;
+  const rows = db
+    .prepare(`SELECT * FROM trades ${clause} ORDER BY entry_time DESC LIMIT ? OFFSET ?`)
+    .all(...params, Number(limit), Number(offset));
+  return { rows, total };
+}
+
+export function saveJournalAnalysis(data) {
+  const db = getDb();
+  const stmt = db.prepare(`
+    INSERT INTO journal_analysis (generated_at, trades_analyzed, analysis_json, period_start, period_end)
+    VALUES (@generated_at, @trades_analyzed, @analysis_json, @period_start, @period_end)
+  `);
+  const info = stmt.run({
+    generated_at: data.generated_at ?? Date.now(),
+    trades_analyzed: data.trades_analyzed ?? 0,
+    analysis_json: JSON.stringify(data.analysis ?? data),
+    period_start: data.period_start ?? null,
+    period_end: data.period_end ?? null
+  });
+  return info.lastInsertRowid;
+}
+
+export function getLatestJournalAnalysis() {
+  const row = getDb()
+    .prepare('SELECT * FROM journal_analysis ORDER BY generated_at DESC LIMIT 1')
+    .get();
+  if (!row) return null;
+  try {
+    return { ...row, analysis: JSON.parse(row.analysis_json) };
   } catch {
     return null;
   }

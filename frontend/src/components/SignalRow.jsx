@@ -21,7 +21,7 @@ function formatPrice(price) {
   return price.toFixed(6);
 }
 
-export function SignalRow({ signal, onSelect }) {
+export function SignalRow({ signal, onSelect, onRegisterTrade }) {
   const dirStyle = DIR_STYLES[signal.direction] ?? DIR_STYLES.NEUTRAL;
   const rowBg = RowBg({ score: signal.score });
 
@@ -105,14 +105,25 @@ export function SignalRow({ signal, onSelect }) {
         {signal.timeframe}
       </td>
 
-      {/* Acción */}
+      {/* Acciones */}
       <td className="px-4 py-3">
-        <button
-          onClick={() => onSelect?.(signal)}
-          className="rounded-lg border border-blue-500/40 bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-300 hover:bg-blue-500/20 transition-colors whitespace-nowrap"
-        >
-          Calcular
-        </button>
+        <div className="flex gap-1.5">
+          <button
+            onClick={() => onSelect?.(signal)}
+            className="rounded-lg border border-blue-500/40 bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-300 hover:bg-blue-500/20 transition-colors whitespace-nowrap"
+          >
+            Calcular
+          </button>
+          {onRegisterTrade && (
+            <button
+              onClick={() => onRegisterTrade(signal)}
+              title="Registrar operación en el journal"
+              className="rounded-lg border border-gray-700 px-3 py-1 text-xs font-semibold text-gray-300 hover:bg-gray-800 transition-colors whitespace-nowrap"
+            >
+              Registrar
+            </button>
+          )}
+        </div>
       </td>
     </tr>
   );

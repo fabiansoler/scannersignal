@@ -5,6 +5,7 @@ import { FilterBar } from './components/FilterBar.jsx';
 import { SignalTable } from './components/SignalTable.jsx';
 import { SessionMonitor } from './components/SessionMonitor.jsx';
 import { MarketContext } from './components/MarketContext.jsx';
+import { Journal } from './components/Journal.jsx';
 import { ConfluencePage } from './pages/ConfluencePage.jsx';
 
 const DEFAULT_FILTERS = {
@@ -16,7 +17,8 @@ const DEFAULT_FILTERS = {
 
 const TABS = [
   { id: 'scanner', label: 'Scanner' },
-  { id: 'confluence', label: 'Confluencia' }
+  { id: 'confluence', label: 'Confluencia' },
+  { id: 'journal', label: 'Journal' }
 ];
 
 export default function App() {
@@ -25,6 +27,20 @@ export default function App() {
   const [tab, setTab] = useState('scanner');
   const [sessionCollapsed, setSessionCollapsed] = useState(false);
   const [marketCollapsed, setMarketCollapsed] = useState(false);
+  const [tradePrefill, setTradePrefill] = useState(null);
+
+  const handleRegisterTrade = (signal) => {
+    setTradePrefill({
+      pair: signal.pair,
+      market: signal.market,
+      direction: signal.direction,
+      setup: signal.setup,
+      timeframe: signal.timeframe,
+      entry_price: signal.price,
+      signal_score: signal.score
+    });
+    setTab('journal');
+  };
 
   const activePairs = useMemo(() => [...new Set(signals.map(s => s.pair))], [signals]);
   const activeTimeframe = signals[0]?.timeframe ?? 'M5';
@@ -104,10 +120,12 @@ export default function App() {
             />
             <MetricCards signals={filtered} />
             <FilterBar filters={filters} onChange={setFilters} />
-            <SignalTable signals={filtered} />
+            <SignalTable signals={filtered} onRegisterTrade={handleRegisterTrade} />
           </>
-        ) : (
+        ) : tab === 'confluence' ? (
           <ConfluencePage />
+        ) : (
+          <Journal prefill={tradePrefill} onPrefillConsumed={() => setTradePrefill(null)} />
         )}
       </main>
     </div>
