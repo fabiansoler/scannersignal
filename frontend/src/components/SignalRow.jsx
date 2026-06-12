@@ -29,7 +29,17 @@ export function SignalRow({ signal, onSelect }) {
     <tr className={`border-b transition-colors signal-new ${rowBg}`}>
       {/* Par + mercado */}
       <td className="px-4 py-3">
-        <div className="font-semibold text-gray-100">{signal.pair}</div>
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-gray-100">{signal.pair}</span>
+          {signal.is_high_liquidity && (
+            <span
+              title="Generada durante el overlap London/NY (alta liquidez)"
+              className="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300 whitespace-nowrap"
+            >
+              ⚡ Alta liquidez
+            </span>
+          )}
+        </div>
         <div className="text-xs text-gray-500 uppercase">{signal.market}</div>
       </td>
 

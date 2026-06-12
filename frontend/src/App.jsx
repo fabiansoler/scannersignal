@@ -3,6 +3,7 @@ import { useScanner } from './hooks/useScanner.js';
 import { MetricCards } from './components/MetricCards.jsx';
 import { FilterBar } from './components/FilterBar.jsx';
 import { SignalTable } from './components/SignalTable.jsx';
+import { SessionMonitor } from './components/SessionMonitor.jsx';
 import { ConfluencePage } from './pages/ConfluencePage.jsx';
 
 const DEFAULT_FILTERS = {
@@ -21,6 +22,7 @@ export default function App() {
   const { signals, connected, lastUpdate } = useScanner();
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [tab, setTab] = useState('scanner');
+  const [sessionCollapsed, setSessionCollapsed] = useState(false);
 
   const filtered = useMemo(() => {
     return signals.filter(s => {
@@ -85,6 +87,10 @@ export default function App() {
                 Sin señales disponibles — verificar conexión con los feeds de mercado.
               </div>
             )}
+            <SessionMonitor
+              isCollapsed={sessionCollapsed}
+              onToggle={() => setSessionCollapsed(prev => !prev)}
+            />
             <MetricCards signals={filtered} />
             <FilterBar filters={filters} onChange={setFilters} />
             <SignalTable signals={filtered} />

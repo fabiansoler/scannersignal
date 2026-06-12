@@ -9,6 +9,7 @@ import { startScanner, getAllSignals, onSignalChange } from './scanner.js';
 import { calculateConfluence, supportedPairs } from './feeds/confluence.js';
 import { getSignalsHistory } from './db.js';
 import calculatorRouter from './routes/calculator.js';
+import sessionsRouter, { startSessionWatcher } from './routes/sessions.js';
 
 const CONFLUENCE_INTERVAL_MS = 10_000;
 
@@ -29,6 +30,7 @@ app.use((req, res, next) => {
 });
 
 app.use('/api/calculator', calculatorRouter);
+app.use('/api/sessions', sessionsRouter);
 
 app.get('/api/signals/history', (req, res) => {
   const limit = Math.min(Number(req.query.limit ?? 50), 500);
@@ -137,4 +139,5 @@ onSignalChange((signals) => {
 server.listen(PORT, () => {
   console.log(`[server] Puerto ${PORT} | env=${IS_PROD ? 'production' : 'development'}`);
   startScanner();
+  startSessionWatcher(broadcast);
 });

@@ -2,6 +2,7 @@ import { calculateIndicators } from './indicators.js';
 import { calcScore } from './scoring.js';
 import { sendAlert } from './alerts.js';
 import { saveSignal } from './db.js';
+import { isHighLiquidity } from './sessions.js';
 import * as cryptoFeed from './feeds/crypto.js';
 import * as forexFeed from './feeds/forex.js';
 
@@ -54,7 +55,8 @@ async function scanPair(pair, market, timeframe) {
     indicators: indicatorFlags,
     price,
     timeframe,
-    timestamp: Date.now()
+    timestamp: Date.now(),
+    is_high_liquidity: isHighLiquidity()
   };
 }
 

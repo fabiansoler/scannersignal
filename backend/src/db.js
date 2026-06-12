@@ -41,6 +41,13 @@ export function getDb() {
       );
       CREATE INDEX IF NOT EXISTS idx_poscalc_timestamp ON position_calculations(timestamp DESC);
     `);
+
+    // Migración: agregar columna is_high_liquidity si no existe
+    // (SQLite no soporta ADD COLUMN IF NOT EXISTS)
+    const cols = db.prepare('PRAGMA table_info(signals)').all();
+    if (!cols.some(c => c.name === 'is_high_liquidity')) {
+      db.exec('ALTER TABLE signals ADD COLUMN is_high_liquidity INTEGER DEFAULT 0');
+    }
   }
   return db;
 }
@@ -72,8 +79,8 @@ export function saveCalculation(data) {
 export function saveSignal(signal) {
   const db = getDb();
   const stmt = db.prepare(`
-    INSERT INTO signals (pair, market, direction, setup, score, price, timeframe, timestamp)
-    VALUES (@pair, @market, @direction, @setup, @score, @price, @timeframe, @timestamp)
+    INSERT INTO signals (pair, market, direction, setup, score, price, timeframe, timestamp, is_high_liquidity)
+    VALUES (@pair, @market, @direction, @setup, @score, @price, @timeframe, @timestamp, @is_high_liquidity)
   `);
   stmt.run({
     pair: signal.pair,
@@ -83,7 +90,8 @@ export function saveSignal(signal) {
     score: signal.score,
     price: signal.price ?? null,
     timeframe: signal.timeframe,
-    timestamp: signal.timestamp ?? Date.now()
+    timestamp: signal.timestamp ?? Date.now(),
+    is_high_liquidity: signal.is_high_liquidity ? 1 : 0
   });
 }
 
