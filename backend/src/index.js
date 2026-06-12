@@ -10,6 +10,8 @@ import { calculateConfluence, supportedPairs } from './feeds/confluence.js';
 import { getSignalsHistory } from './db.js';
 import calculatorRouter from './routes/calculator.js';
 import sessionsRouter, { startSessionWatcher } from './routes/sessions.js';
+import marketContextRouter from './routes/market-context.js';
+import { checkGroqStatus } from './groq-client.js';
 
 const CONFLUENCE_INTERVAL_MS = 10_000;
 
@@ -31,6 +33,7 @@ app.use((req, res, next) => {
 
 app.use('/api/calculator', calculatorRouter);
 app.use('/api/sessions', sessionsRouter);
+app.use('/api/market-context', marketContextRouter);
 
 app.get('/api/signals/history', (req, res) => {
   const limit = Math.min(Number(req.query.limit ?? 50), 500);
@@ -140,4 +143,12 @@ server.listen(PORT, () => {
   console.log(`[server] Puerto ${PORT} | env=${IS_PROD ? 'production' : 'development'}`);
   startScanner();
   startSessionWatcher(broadcast);
+
+  checkGroqStatus().then(status => {
+    if (status.available) {
+      console.log(`✅ Groq conectado — modelo: ${status.model} (${status.latency_ms}ms)`);
+    } else {
+      console.log(`❌ Groq no disponible — ${status.reason}`);
+    }
+  });
 });

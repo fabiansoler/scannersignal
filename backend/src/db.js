@@ -40,6 +40,17 @@ export function getDb() {
         timestamp     INTEGER
       );
       CREATE INDEX IF NOT EXISTS idx_poscalc_timestamp ON position_calculations(timestamp DESC);
+
+      CREATE TABLE IF NOT EXISTS market_context (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        session       TEXT,
+        bias          TEXT,
+        confidence    INTEGER,
+        analysis_json TEXT,
+        generated_at  INTEGER,
+        valid_until   INTEGER
+      );
+      CREATE INDEX IF NOT EXISTS idx_mktctx_generated ON market_context(generated_at DESC);
     `);
 
     // Migración: agregar columna is_high_liquidity si no existe
@@ -100,4 +111,34 @@ export function getSignalsHistory(limit = 50) {
   return db
     .prepare('SELECT * FROM signals ORDER BY timestamp DESC LIMIT ?')
     .all(limit);
+}
+
+export function saveMarketContext(data) {
+  const db = getDb();
+  const stmt = db.prepare(`
+    INSERT INTO market_context (session, bias, confidence, analysis_json, generated_at, valid_until)
+    VALUES (@session, @bias, @confidence, @analysis_json, @generated_at, @valid_until)
+  `);
+  const info = stmt.run({
+    session: data.session ?? null,
+    bias: data.bias?.overall ?? null,
+    confidence: data.bias?.confidence ?? null,
+    analysis_json: JSON.stringify(data),
+    generated_at: data.generated_at ?? Date.now(),
+    valid_until: data.valid_until ?? null
+  });
+  return info.lastInsertRowid;
+}
+
+export function getLatestMarketContext() {
+  const db = getDb();
+  const row = db
+    .prepare('SELECT analysis_json FROM market_context ORDER BY generated_at DESC LIMIT 1')
+    .get();
+  if (!row) return null;
+  try {
+    return JSON.parse(row.analysis_json);
+  } catch {
+    return null;
+  }
 }

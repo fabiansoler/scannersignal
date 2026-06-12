@@ -4,6 +4,7 @@ import { MetricCards } from './components/MetricCards.jsx';
 import { FilterBar } from './components/FilterBar.jsx';
 import { SignalTable } from './components/SignalTable.jsx';
 import { SessionMonitor } from './components/SessionMonitor.jsx';
+import { MarketContext } from './components/MarketContext.jsx';
 import { ConfluencePage } from './pages/ConfluencePage.jsx';
 
 const DEFAULT_FILTERS = {
@@ -23,6 +24,10 @@ export default function App() {
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [tab, setTab] = useState('scanner');
   const [sessionCollapsed, setSessionCollapsed] = useState(false);
+  const [marketCollapsed, setMarketCollapsed] = useState(false);
+
+  const activePairs = useMemo(() => [...new Set(signals.map(s => s.pair))], [signals]);
+  const activeTimeframe = signals[0]?.timeframe ?? 'M5';
 
   const filtered = useMemo(() => {
     return signals.filter(s => {
@@ -87,6 +92,12 @@ export default function App() {
                 Sin señales disponibles — verificar conexión con los feeds de mercado.
               </div>
             )}
+            <MarketContext
+              pairs={activePairs}
+              timeframe={activeTimeframe}
+              isCollapsed={marketCollapsed}
+              onToggle={() => setMarketCollapsed(prev => !prev)}
+            />
             <SessionMonitor
               isCollapsed={sessionCollapsed}
               onToggle={() => setSessionCollapsed(prev => !prev)}
