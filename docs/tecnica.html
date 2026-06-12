@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scanner de Señales — Documentación técnica</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="layout">
+
+  <nav>
+    <div class="logo">Scanner<span>Signals</span></div>
+    <div class="version">Documentación técnica</div>
+    <div class="doc-switch">
+      <a href="funcional.html">Funcional</a>
+      <a href="tecnica.html" class="current">Técnica</a>
+    </div>
+
+    <div class="section-title">Arquitectura</div>
+    <ul>
+      <li><a href="#stack">Stack y módulos</a></li>
+      <li><a href="#flujo">Flujo de datos</a></li>
+    </ul>
+
+    <div class="section-title">Motor</div>
+    <ul>
+      <li><a href="#indicadores">Indicadores</a></li>
+      <li><a href="#scoring">Scoring</a></li>
+      <li><a href="#feeds">Feeds y APIs</a></li>
+      <li><a href="#websocket">WebSocket</a></li>
+    </ul>
+
+    <div class="section-title">Módulos</div>
+    <ul>
+      <li><a href="#confluencia">Confluencia</a></li>
+      <li><a href="#calculadora">Calculadora</a></li>
+      <li><a href="#sesiones">Sesiones</a></li>
+      <li><a href="#ia">Briefing IA (Groq)</a></li>
+      <li><a href="#journal">Journal</a></li>
+    </ul>
+
+    <div class="section-title">Referencia</div>
+    <ul>
+      <li><a href="#rest">Endpoints REST</a></li>
+      <li><a href="#db">Base de datos</a></li>
+      <li><a href="#env">Variables de entorno</a></li>
+      <li><a href="#deploy">Deploy Railway</a></li>
+    </ul>
+  </nav>
+
+  <main>
+    <div class="hero">
+      <h1>Documentación técnica</h1>
+      <p class="subtitle">Arquitectura, motor de escaneo, feeds, WebSocket, endpoints REST, esquema de base de datos y deploy.</p>
+      <div class="badges">
+        <span class="badge badge-blue">Node.js + Express</span>
+        <span class="badge badge-cyan">ws</span>
+        <span class="badge badge-blue">React + Vite</span>
+        <span class="badge badge-yellow">better-sqlite3</span>
+        <span class="badge badge-purple">groq-sdk</span>
+      </div>
+    </div>
+
+    <!-- Stack -->
+    <section id="stack">
+      <h2>Stack y módulos</h2>
+      <p>Monorepo con backend Node.js (ES Modules) y frontend React + Vite. En producción el backend sirve el frontend compilado, todo en un único servicio.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Archivo</th><th>Ubicación</th><th>Responsabilidad</th></tr></thead>
+          <tbody>
+            <tr><td><code>index.js</code></td><td>backend/src/</td><td>Express + WebSocket server; monta routers y sirve el frontend</td></tr>
+            <tr><td><code>scanner.js</code></td><td>backend/src/</td><td>Ciclo de escaneo periódico de todos los pares</td></tr>
+            <tr><td><code>indicators.js</code></td><td>backend/src/</td><td>RSI, EMA, MACD y volumen relativo sobre OHLCV</td></tr>
+            <tr><td><code>scoring.js</code></td><td>backend/src/</td><td>Combina indicadores en score 0–100 y dirección</td></tr>
+            <tr><td><code>feeds/crypto.js</code></td><td>backend/src/</td><td>Velas de cripto vía Yahoo Finance v8</td></tr>
+            <tr><td><code>feeds/forex.js</code></td><td>backend/src/</td><td>Velas de forex/futuros vía Yahoo Finance v8</td></tr>
+            <tr><td><code>feeds/confluence.js</code></td><td>backend/src/</td><td>Confluencia multi-timeframe; score firmado −100..+100</td></tr>
+            <tr><td><code>sessions.js</code></td><td>backend/src/</td><td>Lógica pura de sesiones de mercado (UTC)</td></tr>
+            <tr><td><code>groq-client.js</code></td><td>backend/src/</td><td>Cliente Groq: streaming JSON + status</td></tr>
+            <tr><td><code>routes/*.js</code></td><td>backend/src/</td><td>calculator, sessions, market-context, journal</td></tr>
+            <tr><td><code>alerts.js</code></td><td>backend/src/</td><td>Alertas Telegram con cooldown</td></tr>
+            <tr><td><code>db.js</code></td><td>backend/src/</td><td>SQLite (WAL): esquema y acceso a datos</td></tr>
+            <tr><td><code>hooks/*.js</code></td><td>frontend/src/</td><td>useScanner, usePositionCalc, useSessionMonitor, useMarketContext, useConfluenceWS, useJournal</td></tr>
+            <tr><td><code>components/, pages/</code></td><td>frontend/src/</td><td>UI: tabla, calculadora, monitor, briefing, confluencia, journal</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Flujo -->
+    <section id="flujo">
+      <h2>Flujo de datos</h2>
+      <div class="flow">
+        <div class="flow-node">Yahoo Finance<br><small>OHLCV</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">Scanner<br><small>cada 10s</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">Indicadores<br><small>RSI·EMA·MACD·Vol</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">Scoring<br><small>0–100</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">WebSocket<br><small>broadcast</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">React UI</div>
+      </div>
+      <p>Todos los pares se procesan en paralelo con <code>Promise.allSettled</code> — si un par falla, los demás continúan. Solo se publican señales con <code>score ≥ MIN_SCORE_PUBLISH</code> (default 50), y solo se hace broadcast cuando el score o la dirección cambian respecto al ciclo anterior.</p>
+    </section>
+
+    <!-- Indicadores -->
+    <section id="indicadores">
+      <h2>Indicadores</h2>
+      <p>Calculados sobre las últimas 100 velas con la librería <code>technicalindicators</code>. Cada uno retorna <code>{ signal, value, active }</code>.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Indicador</th><th>Parámetros</th><th>Activación</th></tr></thead>
+          <tbody>
+            <tr><td>RSI</td><td>14</td><td>bullish si &lt; 35, bearish si &gt; 65</td></tr>
+            <tr><td>EMA</td><td>9 vs 21</td><td>bullish si EMA9 &gt; EMA21 (separación &gt; 0.01%)</td></tr>
+            <tr><td>MACD</td><td>12, 26, 9</td><td>bullish si histograma positivo y creciente</td></tr>
+            <tr><td>Volumen</td><td>SMA 20</td><td>activo si volumen actual &gt; 1.5× el promedio</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Scoring -->
+    <section id="scoring">
+      <h2>Scoring</h2>
+      <p>El score (0–100) suma los pesos de los indicadores activos. La dirección la define el bando con más puntos.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Indicador</th><th>Peso</th></tr></thead>
+          <tbody>
+            <tr><td>EMA Cross</td><td><strong>30</strong></td></tr>
+            <tr><td>RSI</td><td><strong>25</strong></td></tr>
+            <tr><td>MACD</td><td><strong>25</strong></td></tr>
+            <tr><td>Volumen</td><td><strong>20</strong> (amplificador al bando dominante)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <pre><code><span class="comment">// scoring.js</span>
+<span class="kw">const</span> direction =
+  bullishPoints > bearishPoints ? <span class="str">"LONG"</span>
+  : bearishPoints > bullishPoints ? <span class="str">"SHORT"</span>
+  : <span class="str">"NEUTRAL"</span></code></pre>
+    </section>
+
+    <!-- Feeds -->
+    <section id="feeds">
+      <h2>Feeds y APIs externas</h2>
+      <p>Fuente única de datos de mercado: <strong>Yahoo Finance v8</strong>, vía <code>fetch</code> nativo (sin librerías ni API key). Caché de 60s por par. La IA usa <strong>Groq</strong>.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>API</th><th>Uso</th><th>Acceso</th><th>Auth</th></tr></thead>
+          <tbody>
+            <tr><td>Yahoo Finance v8</td><td>OHLCV de los 13 pares (M1/M5/M15)</td><td><code>fetch</code> REST</td><td>No</td></tr>
+            <tr><td>Groq</td><td>Briefing de mercado y análisis del journal</td><td><code>groq-sdk</code></td><td><code>GROQ_API_KEY</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <h3>Mapa de símbolos Yahoo</h3>
+      <p>Cripto con sufijo <code>-USD</code>, forex <code>=X</code>, futuros <code>=F</code>:</p>
+      <pre><code>BTC/USDT → BTC-USD    EUR/USD → EURUSD=X    NQ1! → NQ=F
+ETH/USDT → ETH-USD    GBP/USD → GBPUSD=X    ES1! → ES=F
+SOL/USDT → SOL-USD    USD/JPY → USDJPY=X    CL1! → CL=F
+BNB/USDT → BNB-USD    GBP/JPY → GBPJPY=X
+XRP/USDT → XRP-USD    AUD/USD → AUDUSD=X</code></pre>
+      <pre><code><span class="comment">// endpoint Yahoo</span>
+https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=${tf}&range=7d
+<span class="comment">// header obligatorio: User-Agent (Yahoo rechaza sin él)</span></code></pre>
+      <div class="callout callout-warning">
+        <span class="callout-icon">⚠️</span>
+        <span>En redes corporativas con proxy SSL hay que setear <code>NODE_TLS_REJECT_UNAUTHORIZED=0</code> en <code>backend/.env</code>, si no Yahoo y Groq fallan por certificado.</span>
+      </div>
+    </section>
+
+    <!-- WebSocket -->
+    <section id="websocket">
+      <h2>WebSocket</h2>
+      <p>Un único servidor WS en el mismo puerto que la API (<code>ws://host:PORT</code> en dev, <code>wss://host</code> en prod). Canales:</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Mensaje</th><th>Dirección</th><th>Descripción</th></tr></thead>
+          <tbody>
+            <tr><td><code>signals_update</code></td><td>server→client</td><td>Señales del scanner (broadcast al cambiar)</td></tr>
+            <tr><td><code>confluence_subscribe</code> / <code>_unsubscribe</code></td><td>client→server</td><td>Suscribe/desuscribe al canal de confluencia de un par</td></tr>
+            <tr><td><code>confluence_update</code></td><td>server→client</td><td>Confluencia del par suscripto (cada 10s)</td></tr>
+            <tr><td><code>session_change</code></td><td>server→client</td><td>Apertura/cierre de una sesión de mercado</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <pre><code><span class="comment">// signals_update</span>
+{ <span class="key">"type"</span>: <span class="str">"signals_update"</span>, <span class="key">"timestamp"</span>: <span class="num">…</span>, <span class="key">"data"</span>: [ { pair, market, direction, setup, score, indicators, price, timeframe, is_high_liquidity } ] }</code></pre>
+    </section>
+
+    <!-- Confluencia -->
+    <section id="confluencia">
+      <h2>Confluencia multi-timeframe</h2>
+      <p><code>feeds/confluence.js</code> calcula M1/M5/M15 de un par reutilizando los feeds e indicadores. Score <strong>firmado</strong> por timeframe (mismos pesos que scoring): positivo alcista, negativo bajista. El <code>overallScore</code> promedia los tres.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>overallScore</th><th>signal</th></tr></thead>
+          <tbody>
+            <tr><td>≥ +70 / +40..+69</td><td>STRONG BUY / WEAK BUY</td></tr>
+            <tr><td>−39..+39</td><td>NEUTRAL</td></tr>
+            <tr><td>−40..−69 / ≤ −70</td><td>WEAK SELL / STRONG SELL</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Calculadora -->
+    <section id="calculadora">
+      <h2>Calculadora de posición</h2>
+      <p>Lógica pura en <code>usePositionCalc.js</code>. Cálculos en base a entrada, % riesgo, distancia SL y RR:</p>
+      <pre><code>monto en riesgo = capital × (%riesgo / 100)
+distancia SL    = entrada × (%SL / 100)
+SL  = LONG: entrada − distancia | SHORT: entrada + distancia
+TP  = LONG: entrada + distancia×RR | SHORT: entrada − distancia×RR
+tamaño = monto en riesgo / distancia SL</code></pre>
+      <p>SL default por mercado: crypto 1.5% · forex 0.3% · futuros 0.5%. Cada cálculo se guarda en <code>position_calculations</code> al copiar el resumen.</p>
+    </section>
+
+    <!-- Sesiones -->
+    <section id="sesiones">
+      <h2>Sesiones</h2>
+      <p><code>sessions.js</code> define horarios en UTC y expone funciones puras reutilizadas por la API, el scanner (<code>is_high_liquidity</code>) y el watcher WS.</p>
+      <pre><code>sydney 21–6  ·  tokyo 0–9  ·  london 7–16  ·  newYork 12–21   (UTC)
+overlaps: Tokyo/London 7–9 (medium) · London/NY 12–16 (high)
+isHighLiquidity = overlap London/NY activo</code></pre>
+      <p>El heatmap de volatilidad se calcula desde la tabla <code>signals</code> por hora UTC (densidad de señales), con fallback a datos típicos si no hay historial.</p>
+    </section>
+
+    <!-- IA -->
+    <section id="ia">
+      <h2>Briefing IA (Groq)</h2>
+      <p><code>groq-client.js</code> encapsula Groq (modelo <code>llama-3.3-70b-versatile</code> por default, configurable). Expone <code>analyzeMarketContext</code>, <code>streamJSONCompletion</code> (genérico) y <code>checkGroqStatus</code>. Toda llamada está envuelta en try/catch → error tipado <code>groq_unavailable</code>; nunca crashea.</p>
+      <p>El endpoint de análisis hace <strong>streaming por SSE</strong>: el cliente lo consume con <code>fetch</code> + reader (no <code>EventSource</code>, que no soporta POST). Rate limit de 30 min por sesión; el resultado se persiste en <code>market_context</code>.</p>
+      <pre><code>data: {"type":"chunk","content":"…"}
+data: {"type":"done","analysis":{ bias, key_levels, context_summary, key_events, scalping_tips, … }}</code></pre>
+    </section>
+
+    <!-- Journal -->
+    <section id="journal">
+      <h2>Journal</h2>
+      <p>CRUD de operaciones + estadísticas SQL + coaching IA. <strong>Todo el PnL, RR y la sesión se calculan en el backend</strong>; las operaciones <code>OPEN</code> se excluyen de win rate y PnL.</p>
+      <pre><code>PnL    = (LONG: exit−entry | SHORT: entry−exit) × tamaño
+rr_actual = priceDiff / |entrada − SL|
+result = WIN | LOSS | BREAKEVEN | OPEN</code></pre>
+      <p>Análisis IA: mínimo 5 trades, rate limit 60 min, persistido en <code>journal_analysis</code>. Devuelve nota de disciplina, errores recurrentes, fortalezas, patrones emocionales, veredicto por setup y recomendaciones. Export CSV en <code>GET /api/journal/trades/export</code>.</p>
+    </section>
+
+    <!-- REST -->
+    <section id="rest">
+      <h2>Endpoints REST</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Método</th><th>Ruta</th><th>Descripción</th></tr></thead>
+          <tbody>
+            <tr><td>GET</td><td><code>/api/health</code></td><td>Estado del servidor y clientes WS</td></tr>
+            <tr><td>GET</td><td><code>/api/signals/history?limit=</code></td><td>Historial de señales (máx 500)</td></tr>
+            <tr><td>GET</td><td><code>/api/pairs</code></td><td>Pares soportados por mercado</td></tr>
+            <tr><td>GET</td><td><code>/api/confluence?symbol=</code></td><td>Confluencia multi-timeframe de un par</td></tr>
+            <tr><td>POST</td><td><code>/api/calculator/save</code></td><td>Guarda un cálculo de posición</td></tr>
+            <tr><td>GET</td><td><code>/api/sessions/current</code></td><td>Estado actual de sesiones</td></tr>
+            <tr><td>GET</td><td><code>/api/sessions/volatility</code></td><td>Volatilidad por hora (heatmap)</td></tr>
+            <tr><td>POST</td><td><code>/api/market-context/analyze</code></td><td>Briefing IA (SSE)</td></tr>
+            <tr><td>GET</td><td><code>/api/market-context/latest</code> · <code>/status</code></td><td>Último briefing / estado de Groq</td></tr>
+            <tr><td>—</td><td><code>/api/journal/trades</code> (GET/POST/PUT/DELETE)</td><td>CRUD de operaciones</td></tr>
+            <tr><td>GET</td><td><code>/api/journal/trades/export</code></td><td>Export CSV</td></tr>
+            <tr><td>GET</td><td><code>/api/journal/stats</code></td><td>Estadísticas (SQL puro)</td></tr>
+            <tr><td>POST</td><td><code>/api/journal/analyze</code></td><td>Análisis IA del historial (SSE)</td></tr>
+            <tr><td>POST</td><td><code>/api/journal/trades/:id/feedback</code></td><td>Feedback IA de un trade</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- DB -->
+    <section id="db">
+      <h2>Base de datos</h2>
+      <p>SQLite (<code>better-sqlite3</code>) en modo WAL, en <code>backend/signals.db</code>. Cinco tablas, todas creadas automáticamente al arrancar.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Tabla</th><th>Contenido</th></tr></thead>
+          <tbody>
+            <tr><td><code>signals</code></td><td>Historial de señales del scanner (incluye <code>is_high_liquidity</code>)</td></tr>
+            <tr><td><code>position_calculations</code></td><td>Cálculos de la calculadora de posición</td></tr>
+            <tr><td><code>market_context</code></td><td>Briefings IA generados</td></tr>
+            <tr><td><code>trades</code></td><td>Operaciones del journal</td></tr>
+            <tr><td><code>journal_analysis</code></td><td>Análisis IA del journal</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout callout-info">
+        <span class="callout-icon">ℹ️</span>
+        <span>La columna <code>is_high_liquidity</code> se agrega por migración (SQLite no soporta <code>ADD COLUMN IF NOT EXISTS</code>; se verifica con <code>PRAGMA table_info</code>).</span>
+      </div>
+    </section>
+
+    <!-- Env -->
+    <section id="env">
+      <h2>Variables de entorno</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Variable</th><th>Default</th><th>Descripción</th></tr></thead>
+          <tbody>
+            <tr><td><code>PORT</code></td><td><code>3001</code></td><td>Puerto HTTP/WS</td></tr>
+            <tr><td><code>NODE_ENV</code></td><td><code>development</code></td><td>En <code>production</code> sirve el frontend compilado</td></tr>
+            <tr><td><code>SCAN_INTERVAL_MS</code></td><td><code>10000</code></td><td>Intervalo entre escaneos</td></tr>
+            <tr><td><code>DEFAULT_TIMEFRAME</code></td><td><code>M5</code></td><td>Timeframe por defecto</td></tr>
+            <tr><td><code>MIN_SCORE_PUBLISH</code></td><td><code>50</code></td><td>Score mínimo para publicar por WS</td></tr>
+            <tr><td><code>MIN_SCORE_ALERT</code></td><td><code>80</code></td><td>Score mínimo para alerta Telegram</td></tr>
+            <tr><td><code>GROQ_API_KEY</code></td><td>—</td><td>Key de Groq. Vacía → la IA queda deshabilitada (el resto funciona)</td></tr>
+            <tr><td><code>GROQ_MODEL</code></td><td><code>llama-3.3-70b-versatile</code></td><td>Modelo de Groq</td></tr>
+            <tr><td><code>GROQ_TIMEOUT_MS</code></td><td><code>30000</code></td><td>Timeout de llamadas a Groq</td></tr>
+            <tr><td><code>TELEGRAM_BOT_TOKEN</code> / <code>_CHAT_ID</code></td><td>—</td><td>Alertas Telegram (opcional)</td></tr>
+            <tr><td><code>NODE_TLS_REJECT_UNAUTHORIZED</code></td><td>—</td><td><code>0</code> en redes con proxy SSL</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout callout-warning">
+        <span class="callout-icon">⚠️</span>
+        <span><code>backend/.env</code> está en <code>.gitignore</code> y NO se commitea. Usá <code>backend/.env.example</code> como plantilla. La <code>GROQ_API_KEY</code> debe cargarse también como variable de entorno en Railway.</span>
+      </div>
+    </section>
+
+    <!-- Deploy -->
+    <section id="deploy">
+      <h2>Deploy en Railway</h2>
+      <p>Flujo <strong>GitHub → Railway autodeploy</strong>: cada push a <code>main</code> dispara un deploy. No se deploya directo a Railway.</p>
+      <pre><code>[build]
+builder      = <span class="str">"NIXPACKS"</span>
+buildCommand = <span class="str">"npm run build"</span>   <span class="comment"># instala deps + compila Vite</span>
+
+[deploy]
+startCommand       = <span class="str">"NODE_ENV=production node backend/src/index.js"</span>
+healthcheckPath    = <span class="str">"/api/health"</span></code></pre>
+      <p>El backend detecta <code>NODE_ENV=production</code> y sirve <code>frontend/dist</code> como estáticos. Un único servicio cubre HTTP, WebSocket y frontend.</p>
+    </section>
+
+  </main>
+</div>
+
+<script>
+  const sections = document.querySelectorAll('section[id]');
+  const navLinks = document.querySelectorAll('nav ul a');
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        navLinks.forEach(a => a.classList.remove('active'));
+        const act = document.querySelector(`nav a[href="#${e.target.id}"]`);
+        if (act) act.classList.add('active');
+      }
+    });
+  }, { threshold: 0.3 });
+  sections.forEach(s => obs.observe(s));
+</script>
+</body>
+</html>

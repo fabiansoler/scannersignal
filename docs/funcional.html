@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scanner de Señales — Documentación funcional</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="layout">
+
+  <!-- Sidebar -->
+  <nav>
+    <div class="logo">Scanner<span>Signals</span></div>
+    <div class="version">Documentación funcional</div>
+    <div class="doc-switch">
+      <a href="funcional.html" class="current">Funcional</a>
+      <a href="tecnica.html">Técnica</a>
+    </div>
+
+    <div class="section-title">Introducción</div>
+    <ul>
+      <li><a href="#overview">¿Qué es?</a></li>
+      <li><a href="#organizacion">Cómo se organiza</a></li>
+    </ul>
+
+    <div class="section-title">Scanner</div>
+    <ul>
+      <li><a href="#tabla">Tabla de señales</a></li>
+      <li><a href="#indicadores">Qué miran los indicadores</a></li>
+      <li><a href="#score">El score</a></li>
+      <li><a href="#filtros">Filtros y métricas</a></li>
+      <li><a href="#acciones">Acciones por señal</a></li>
+    </ul>
+
+    <div class="section-title">Módulos</div>
+    <ul>
+      <li><a href="#sesiones">Sesiones &amp; Liquidez</a></li>
+      <li><a href="#briefing">Briefing IA</a></li>
+      <li><a href="#confluencia">Confluencia Multi-TF</a></li>
+      <li><a href="#calculadora">Calculadora de posición</a></li>
+      <li><a href="#journal">Journal</a></li>
+      <li><a href="#alertas">Alertas Telegram</a></li>
+    </ul>
+
+    <div class="section-title">Referencia</div>
+    <ul>
+      <li><a href="#glosario">Glosario</a></li>
+    </ul>
+  </nav>
+
+  <main>
+    <div class="hero">
+      <h1>Guía funcional</h1>
+      <p class="subtitle">Cómo usar el Scanner de Señales en el día a día — qué te muestra cada pantalla y cómo aprovecharla para operar.</p>
+    </div>
+
+    <section id="overview">
+      <h2>¿Qué es?</h2>
+      <p>
+        El Scanner de Señales es una herramienta para <strong>scalping</strong> que vigila 13 instrumentos
+        (cripto, forex y futuros) en tiempo real y te avisa cuándo se alinean las condiciones técnicas para
+        una posible entrada. No opera por vos: detecta setups, te da contexto y te ayuda a dimensionar el
+        riesgo y a aprender de tu historial.
+      </p>
+      <div class="card-grid">
+        <div class="card"><div class="card-icon">🎯</div><h3>Detecta setups</h3><p>Combina 4 indicadores en un score de fuerza 0–100</p></div>
+        <div class="card"><div class="card-icon">⚡</div><h3>En tiempo real</h3><p>La pantalla se actualiza sola, sin recargar</p></div>
+        <div class="card"><div class="card-icon">🧠</div><h3>Contexto IA</h3><p>Briefing de mercado y coaching de tu journal</p></div>
+        <div class="card"><div class="card-icon">📒</div><h3>Aprendés</h3><p>Registrás cada trade y ves tus patrones</p></div>
+      </div>
+    </section>
+
+    <section id="organizacion">
+      <h2>Cómo se organiza</h2>
+      <p>La app tiene tres pestañas en la parte superior:</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Pestaña</th><th>Para qué</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Scanner</strong></td><td>La vista principal: señales en vivo, sesiones, briefing IA y la tabla con filtros</td></tr>
+            <tr><td><strong>Confluencia</strong></td><td>Análisis profundo de un solo par en los 3 timeframes a la vez</td></tr>
+            <tr><td><strong>Journal</strong></td><td>Registro de tus operaciones, estadísticas y análisis IA de tu rendimiento</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Arriba a la derecha, un punto <span style="color:var(--green)">verde</span> "En vivo" indica que estás recibiendo datos; si se pone <span style="color:var(--red)">rojo</span>, la app se reconecta sola.</p>
+    </section>
+
+    <section id="tabla">
+      <h2>Tabla de señales</h2>
+      <p>Cada fila es un instrumento con una señal activa, ordenadas por score de mayor a menor. Las columnas:</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Columna</th><th>Qué te dice</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Par</strong></td><td>El instrumento y su mercado. Un badge <span style="color:#fde68a">⚡ Alta liquidez</span> marca si la señal apareció durante el overlap London/NY</td></tr>
+            <tr><td><strong>Dirección</strong></td><td><span style="color:var(--green)">LONG</span> (compra) / <span style="color:var(--red)">SHORT</span> (venta) / NEUTRAL</td></tr>
+            <tr><td><strong>Setup</strong></td><td>Qué indicadores dispararon la señal</td></tr>
+            <tr><td><strong>Score</strong></td><td>Fuerza de la confluencia (0–100). Cuanto más alto, más indicadores alineados</td></tr>
+            <tr><td><strong>Indicadores</strong></td><td>Chips RSI · EMA · MACD · Vol en azul si están activos</td></tr>
+            <tr><td><strong>Precio</strong></td><td>Último precio de la serie</td></tr>
+            <tr><td><strong>TF</strong></td><td>Timeframe del análisis (M1, M5 o M15)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout callout-info">
+        <span class="callout-icon">ℹ️</span>
+        <span>Todos los datos son reales (de mercado). Si no hay señales, significa que ningún instrumento tiene confluencia suficiente en ese momento — es normal en mercados laterales.</span>
+      </div>
+    </section>
+
+    <section id="indicadores">
+      <h2>Qué miran los indicadores</h2>
+      <p>El scanner combina cuatro lecturas técnicas. No necesitás calcularlas — la app lo hace, pero conviene saber qué significan:</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Indicador</th><th>Qué detecta</th></tr></thead>
+          <tbody>
+            <tr><td><strong>RSI</strong></td><td>Si el precio está "sobrevendido" (posible rebote al alza) o "sobrecomprado" (posible caída)</td></tr>
+            <tr><td><strong>EMA</strong></td><td>La tendencia: si la media rápida va por encima de la lenta, hay impulso alcista (y viceversa)</td></tr>
+            <tr><td><strong>MACD</strong></td><td>La fuerza del momentum: confirma si el movimiento se está acelerando</td></tr>
+            <tr><td><strong>Volumen</strong></td><td>Si hay un pico de actividad que respalda el movimiento. No marca dirección, la amplifica</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="score">
+      <h2>El score</h2>
+      <p>El score resume cuántos indicadores apuntan en la misma dirección. A más indicadores alineados, más alto:</p>
+      <div class="score-demo">
+        <div class="score-row"><div class="score-label">4 indicadores</div><div class="score-bar-wrap"><div class="score-bar bar-green" style="width:100%"></div></div><div class="score-val" style="color:var(--green)">100</div></div>
+        <div class="score-row"><div class="score-label">3 indicadores</div><div class="score-bar-wrap"><div class="score-bar bar-green" style="width:80%"></div></div><div class="score-val" style="color:var(--green)">80</div></div>
+        <div class="score-row"><div class="score-label">2 indicadores</div><div class="score-bar-wrap"><div class="score-bar bar-yellow" style="width:55%"></div></div><div class="score-val" style="color:var(--yellow)">55</div></div>
+        <div class="score-row"><div class="score-label">1 indicador</div><div class="score-bar-wrap"><div class="score-bar bar-blue" style="width:30%"></div></div><div class="score-val" style="color:var(--blue)">30</div></div>
+      </div>
+      <p>En la tabla, las filas con score ≥ 80 se ven en <span style="color:var(--green)">verde</span> (alta confluencia), 65–79 en <span style="color:var(--yellow)">amarillo</span>, y el resto en gris. Las señales con score ≥ 80 además disparan una <a href="#alertas">alerta de Telegram</a>.</p>
+    </section>
+
+    <section id="filtros">
+      <h2>Filtros y métricas</h2>
+      <p>Debajo de las métricas hay una barra de filtros para enfocarte en lo que te interesa:</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Filtro</th><th>Opciones</th></tr></thead>
+          <tbody>
+            <tr><td>Mercado</td><td>Todos / Cripto / Forex / Futuros</td></tr>
+            <tr><td>Timeframe</td><td>Todos / M1 / M5 / M15</td></tr>
+            <tr><td>Dirección</td><td>LONG / SHORT / NEUTRAL</td></tr>
+            <tr><td>Score mínimo</td><td>Slider 0–100 (default 50)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Las cuatro métricas de arriba (señales activas, longs, shorts y score promedio) <strong>siempre reflejan el filtro aplicado</strong>, no el total global.</p>
+    </section>
+
+    <section id="acciones">
+      <h2>Acciones por señal</h2>
+      <p>Cada fila tiene dos botones:</p>
+      <div class="card-grid">
+        <div class="card"><div class="card-icon">🧮</div><h3>Calcular</h3><p>Abre la <a href="#calculadora">calculadora de posición</a> con la señal cargada</p></div>
+        <div class="card"><div class="card-icon">📝</div><h3>Registrar</h3><p>Salta al <a href="#journal">Journal</a> con el formulario pre-cargado para anotar la operación</p></div>
+      </div>
+    </section>
+
+    <section id="sesiones">
+      <h2>Sesiones &amp; Liquidez</h2>
+      <p>
+        Un panel arriba de la tabla muestra qué <strong>sesiones de mercado</strong> están abiertas ahora
+        (Sydney, Tokyo, London, New York) en tu hora local, y cuánto falta para el próximo evento importante.
+      </p>
+      <ul style="padding-left:1.25rem; color:#d1d5db; font-size:0.9rem; line-height:2">
+        <li><strong>Sesiones activas</strong> — verde y con punto pulsante si están abiertas; borde dorado si hay un overlap</li>
+        <li><strong>Countdown</strong> — al fin del overlap actual, al próximo overlap London/NY, o a la apertura de Londres</li>
+        <li><strong>Heatmap</strong> — una grilla de 24 horas que muestra en qué momentos del día tu cuenta históricamente generó más señales (naranja = más actividad)</li>
+      </ul>
+      <div class="callout callout-tip">
+        <span class="callout-icon">💡</span>
+        <span>El overlap <strong>London/NY</strong> (aprox. 12–16 UTC) es la franja de mayor liquidez — suele ser el mejor momento para scalping. La app lo destaca con un banner verde.</span>
+      </div>
+    </section>
+
+    <section id="briefing">
+      <h2>Briefing IA de sesión</h2>
+      <p>
+        La primera sección del scanner es un <strong>briefing generado por inteligencia artificial</strong> que
+        analiza el contexto de mercado antes de operar. Te da:
+      </p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Sección</th><th>Qué muestra</th></tr></thead>
+          <tbody>
+            <tr><td>Bias del día</td><td>Sesgo general (ALCISTA / BAJISTA / LATERAL) con un nivel de confianza</td></tr>
+            <tr><td>Niveles clave</td><td>Soportes y resistencias por par</td></tr>
+            <tr><td>Contexto</td><td>Resumen macro del día y eventos económicos relevantes</td></tr>
+            <tr><td>Tips de scalping</td><td>3 consejos concretos para las condiciones actuales</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Se actualiza con el botón <strong>"Actualizar análisis"</strong>. Si la IA no está disponible, el resto de la app sigue funcionando con normalidad.</p>
+      <div class="callout callout-warning">
+        <span class="callout-icon">⚠️</span>
+        <span>El briefing es una ayuda de contexto, no una recomendación de inversión. Verificá siempre con tu propio análisis.</span>
+      </div>
+    </section>
+
+    <section id="confluencia">
+      <h2>Confluencia Multi-Timeframe</h2>
+      <p>
+        En la pestaña <strong>Confluencia</strong> elegís un par y ves su confluencia en los tres timeframes
+        (M1, M5, M15) <strong>al mismo tiempo</strong>. Sirve para confirmar una entrada: lo ideal es que las
+        tres temporalidades apunten en la misma dirección.
+      </p>
+      <ul style="padding-left:1.25rem; color:#d1d5db; font-size:0.9rem; line-height:2">
+        <li>Cada timeframe muestra un <strong>score con signo</strong>: positivo = alcista, negativo = bajista</li>
+        <li>Un panel general promedia los tres y da una señal: <strong>STRONG / WEAK BUY / SELL</strong> o NEUTRAL</li>
+        <li>Un historial guarda los últimos 20 snapshots para ver cómo evoluciona</li>
+      </ul>
+    </section>
+
+    <section id="calculadora">
+      <h2>Calculadora de posición</h2>
+      <p>
+        Al tocar <strong>"Calcular"</strong> en una señal se abre un panel lateral que te dice exactamente
+        cuánto operar según tu riesgo. Ingresás:
+      </p>
+      <ul style="padding-left:1.25rem; color:#d1d5db; font-size:0.9rem; line-height:2">
+        <li>Tu <strong>capital</strong> y el <strong>% de riesgo</strong> por operación (se recuerdan para la próxima vez)</li>
+        <li>La distancia del <strong>stop loss</strong> (pre-cargada según el mercado) y el <strong>RR</strong> deseado</li>
+      </ul>
+      <p>Y te calcula al instante: monto en riesgo, precio de SL y TP, <strong>tamaño de posición</strong> y valor de la operación. El botón <strong>"Copiar resumen"</strong> te deja todo listo para pegar en tu journal o broker.</p>
+    </section>
+
+    <section id="journal">
+      <h2>Journal</h2>
+      <p>El journal es la capa de aprendizaje: registrás cada operación y la app te muestra tus patrones. Tiene tres sub-secciones.</p>
+
+      <h3>Operaciones</h3>
+      <p>Registrás una entrada (manual o desde el botón "Registrar" del scanner) con par, dirección, setup, precios, tu <strong>emoción</strong> al entrar y si seguiste tu plan. Cuando cerrás la operación, la app calcula sola el resultado (WIN/LOSS), el PnL y el RR real. Podés filtrar, paginar y exportar todo a CSV.</p>
+
+      <h3>Estadísticas</h3>
+      <p>Métricas y gráficos automáticos: win rate, PnL total, RR promedio, racha actual, % que seguiste el plan, curva de equity, win rate por setup y por sesión, y un desglose de tus emociones.</p>
+      <div class="callout callout-info">
+        <span class="callout-icon">ℹ️</span>
+        <span>Las operaciones abiertas (OPEN) no cuentan en el win rate ni el PnL hasta que las cerrás.</span>
+      </div>
+
+      <h3>Análisis IA</h3>
+      <p>Con al menos 5 operaciones registradas, la IA actúa como <strong>coach</strong>: te da una nota de disciplina (0–100), detecta tus errores recurrentes con ejemplos, tus fortalezas, patrones emocionales (FOMO, revenge trading), qué setups conviene mantener o evitar, y recomendaciones priorizadas. También podés pedir feedback puntual de una operación individual.</p>
+    </section>
+
+    <section id="alertas">
+      <h2>Alertas Telegram</h2>
+      <p>
+        Cuando aparece una señal fuerte (score ≥ 80), la app puede enviarte un mensaje automático por Telegram
+        para que no tengas que estar mirando la pantalla. Para evitar spam, espera 5 minutos entre alertas del
+        mismo par. El mensaje incluye par, dirección, score, setup, precio y timeframe.
+      </p>
+      <div class="callout callout-tip">
+        <span class="callout-icon">💡</span>
+        <span>Las alertas son opcionales: si no están configuradas, la app funciona igual y las señales se ven en la pantalla.</span>
+      </div>
+    </section>
+
+    <section id="glosario">
+      <h2>Glosario</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Término</th><th>Significado</th></tr></thead>
+          <tbody>
+            <tr><td><strong>LONG / SHORT</strong></td><td>Operación a favor de una subida (compra) / bajada (venta)</td></tr>
+            <tr><td><strong>Score</strong></td><td>Fuerza de la señal (0–100), según cuántos indicadores se alinean</td></tr>
+            <tr><td><strong>Setup</strong></td><td>La combinación de indicadores que disparó la señal</td></tr>
+            <tr><td><strong>SL / TP</strong></td><td>Stop Loss (límite de pérdida) / Take Profit (objetivo de ganancia)</td></tr>
+            <tr><td><strong>RR</strong></td><td>Risk/Reward: cuánto ganás por cada unidad que arriesgás (ej. 1:2)</td></tr>
+            <tr><td><strong>Timeframe (TF)</strong></td><td>La temporalidad de las velas: M1 (1 min), M5 (5 min), M15 (15 min)</td></tr>
+            <tr><td><strong>Overlap</strong></td><td>Franja en que dos sesiones de mercado están abiertas a la vez (más liquidez)</td></tr>
+            <tr><td><strong>PnL</strong></td><td>Profit and Loss: la ganancia o pérdida de una operación</td></tr>
+            <tr><td><strong>Win rate</strong></td><td>% de operaciones ganadoras sobre el total de cerradas</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+  const sections = document.querySelectorAll('section[id]');
+  const navLinks = document.querySelectorAll('nav ul a');
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        navLinks.forEach(a => a.classList.remove('active'));
+        const act = document.querySelector(`nav a[href="#${e.target.id}"]`);
+        if (act) act.classList.add('active');
+      }
+    });
+  }, { threshold: 0.3 });
+  sections.forEach(s => obs.observe(s));
+</script>
+</body>
+</html>
