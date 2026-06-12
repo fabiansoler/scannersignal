@@ -330,6 +330,14 @@
       <li><a href="#confluencia-ui">Pantalla</a></li>
     </ul>
 
+    <div class="section-title">Calculadora de Posición</div>
+    <ul>
+      <li><a href="#calculadora">¿Qué es?</a></li>
+      <li><a href="#calculadora-formulas">Fórmulas</a></li>
+      <li><a href="#calculadora-api">API y persistencia</a></li>
+      <li><a href="#calculadora-uso">Uso</a></li>
+    </ul>
+
     <div class="section-title">Configuración</div>
     <ul>
       <li><a href="#env">Variables de entorno</a></li>
@@ -372,6 +380,11 @@
         Incluye además un módulo de <strong><a href="#confluencia">Confluencia Multi-Timeframe</a></strong>:
         una pantalla aparte que toma un único par y analiza su confluencia de indicadores en M1, M5 y M15
         simultáneamente, con un score firmado de −100 a +100 y señal STRONG/WEAK BUY/SELL en tiempo real.
+      </p>
+      <p>
+        Y una <strong><a href="#calculadora">Calculadora de Posición</a></strong> integrada: al hacer click en una
+        señal, abre un panel lateral que calcula tamaño de posición, stop loss y take profit según el capital y el
+        riesgo configurados, con resumen copiable para el journal.
       </p>
 
       <div class="card-grid">
@@ -429,6 +442,7 @@
             <tr><td><code>feeds/crypto.js</code></td><td>backend/src/</td><td>Obtiene velas reales de cripto vía Yahoo Finance v8 (con caché 60s)</td></tr>
             <tr><td><code>feeds/forex.js</code></td><td>backend/src/</td><td>Obtiene velas reales de forex/futuros vía Yahoo Finance v8 (con caché 60s)</td></tr>
             <tr><td><code>feeds/confluence.js</code></td><td>backend/src/</td><td>Confluencia multi-timeframe (M1/M5/M15) de un par; score firmado −100..+100</td></tr>
+            <tr><td><code>routes/calculator.js</code></td><td>backend/src/</td><td>Router REST que guarda los cálculos de posición en SQLite</td></tr>
             <tr><td><code>alerts.js</code></td><td>backend/src/</td><td>Envía alertas a Telegram con cooldown por par</td></tr>
             <tr><td><code>db.js</code></td><td>backend/src/</td><td>SQLite: guarda historial de señales y expone endpoint REST</td></tr>
             <tr><td><code>index.js</code></td><td>backend/src/</td><td>Express + WebSocket server; sirve el frontend en producción</td></tr>
@@ -436,6 +450,8 @@
             <tr><td><code>App.jsx</code></td><td>frontend/src/</td><td>Raíz de la UI: tabs Scanner / Confluencia, filtros, métricas y tabla</td></tr>
             <tr><td><code>pages/ConfluencePage.jsx</code></td><td>frontend/src/</td><td>Pantalla de confluencia multi-timeframe (selector, cards, panel, historial)</td></tr>
             <tr><td><code>useConfluenceWS.js</code></td><td>frontend/src/hooks/</td><td>Hook que gestiona la suscripción WS de confluencia para el par elegido</td></tr>
+            <tr><td><code>PositionCalculator.jsx</code></td><td>frontend/src/components/</td><td>Panel lateral de cálculo de posición (SL, TP, tamaño, riesgo)</td></tr>
+            <tr><td><code>usePositionCalc.js</code></td><td>frontend/src/hooks/</td><td>Hook puro con toda la lógica de cálculo de la posición</td></tr>
           </tbody>
         </table>
       </div>
@@ -797,6 +813,8 @@
   timestamp INTEGER NOT NULL    <span class="comment">-- Unix ms</span>
 );</code></pre>
 
+      <p>Existe además una segunda tabla, <code>position_calculations</code>, que guarda los cálculos de la <a href="#calculadora">Calculadora de Posición</a> — su esquema se detalla en esa sección.</p>
+
       <h3>Endpoint REST</h3>
       <div class="table-wrap">
         <table>
@@ -806,6 +824,7 @@
             <tr><td>GET</td><td><code>/api/health</code></td><td>Estado del servidor, clientes WS conectados y entorno</td></tr>
             <tr><td>GET</td><td><code>/api/pairs</code></td><td>Pares soportados agrupados por mercado (módulo Confluencia)</td></tr>
             <tr><td>GET</td><td><code>/api/confluence?symbol=…</code></td><td>Confluencia multi-timeframe de un par (módulo Confluencia)</td></tr>
+            <tr><td>POST</td><td><code>/api/calculator/save</code></td><td>Guarda un cálculo de posición (módulo Calculadora)</td></tr>
           </tbody>
         </table>
       </div>
@@ -1067,6 +1086,164 @@
       <div class="callout callout-tip">
         <span class="callout-icon">💡</span>
         <span>El selector usa un <strong>dropdown</strong> de los 13 pares soportados (no texto libre) porque con Yahoo solo funcionan los símbolos mapeados. Al cambiar de par, el frontend re-suscribe el WebSocket y reinicia el historial.</span>
+      </div>
+    </section>
+
+    <!-- Calculadora: overview -->
+    <section id="calculadora">
+      <h2>Calculadora de Posición</h2>
+      <p>
+        Panel lateral que se abre al hacer click en el botón <strong>"Calcular"</strong> de cualquier fila
+        de la tabla de señales. Calcula automáticamente el <strong>tamaño de posición</strong>, el stop loss
+        y el take profit en base al riesgo configurado, para pasar de una señal a una orden lista para operar.
+      </p>
+
+      <div class="flow" style="font-size:0.8rem">
+        <div class="flow-node">Click "Calcular"<br><small>en una señal</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">Inputs<br><small>capital · riesgo · SL · RR</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">Cálculo en vivo<br><small>tamaño · SL · TP</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node">Copiar resumen<br><small>+ guardar en DB</small></div>
+      </div>
+
+      <div class="callout callout-info">
+        <span class="callout-icon">ℹ️</span>
+        <span>La lógica de cálculo vive en un hook puro: <code>frontend/src/hooks/usePositionCalc.js</code> (mismos inputs → mismos outputs, sin side effects). El componente <code>PositionCalculator.jsx</code> solo muestra.</span>
+      </div>
+    </section>
+
+    <!-- Calculadora: fórmulas -->
+    <section id="calculadora-formulas">
+      <h2>Fórmulas</h2>
+      <p>El precio de entrada es el último <code>close</code> de la señal. A partir de los 4 inputs del usuario se derivan todos los valores:</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Output</th><th>Fórmula</th></tr></thead>
+          <tbody>
+            <tr><td>Monto en riesgo</td><td><code>capital × (%riesgo / 100)</code></td></tr>
+            <tr><td>Distancia SL</td><td><code>entrada × (%SL / 100)</code></td></tr>
+            <tr><td>Precio SL</td><td>LONG: <code>entrada − distancia</code> · SHORT: <code>entrada + distancia</code></td></tr>
+            <tr><td>Precio TP</td><td>LONG: <code>entrada + (distancia × RR)</code> · SHORT: <code>entrada − (distancia × RR)</code></td></tr>
+            <tr><td>Tamaño de posición</td><td><code>monto en riesgo / distancia SL</code> (en unidades del activo)</td></tr>
+            <tr><td>Valor de la posición</td><td><code>tamaño × entrada</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>SL default por mercado</h3>
+      <p>Al abrir la calculadora, la distancia del SL se preselecciona según el mercado de la señal (editable):</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Mercado</th><th>SL default</th><th>Referencia aproximada</th></tr></thead>
+          <tbody>
+            <tr><td><span class="badge badge-yellow">Crypto</span></td><td><code>1.5%</code></td><td>desde la entrada</td></tr>
+            <tr><td><span class="badge badge-blue">Forex</span></td><td><code>0.3%</code></td><td>≈ 30 pips en majors</td></tr>
+            <tr><td><span class="badge badge-purple">Futuros</span></td><td><code>0.5%</code></td><td>≈ 10 puntos NQ</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Rangos y redondeo</h3>
+      <ul style="padding-left:1.25rem; color:#d1d5db; font-size:0.9rem; line-height:2">
+        <li>% Riesgo: <code>0.1</code> a <code>5</code> · RR: <code>1</code> a <code>5</code></li>
+        <li>Tamaño de posición → 4 decimales · USD → 2 decimales</li>
+        <li>Precios → formateo inteligente (≥1000 → 2 dec · ≥1 → 4 dec · resto → 6 dec) para no perder precisión en forex</li>
+      </ul>
+
+      <div class="callout callout-warning">
+        <span class="callout-icon">⚠️</span>
+        <span>Si capital o % de riesgo son 0 (o están vacíos), <code>isValid</code> es <code>false</code> y el panel muestra un aviso en vez de cálculos.</span>
+      </div>
+    </section>
+
+    <!-- Calculadora: API -->
+    <section id="calculadora-api">
+      <h2>API y persistencia</h2>
+      <p>Cada cálculo se guarda en SQLite al hacer click en "Copiar resumen" (no en cada cambio de input), para historial y análisis posterior.</p>
+
+      <h3>Endpoint REST</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Método</th><th>Ruta</th><th>Descripción</th></tr></thead>
+          <tbody>
+            <tr><td>POST</td><td><code>/api/calculator/save</code></td><td>Guarda un cálculo. Responde <code>{ id, saved: true }</code>. 400 si falta <code>pair</code> o <code>entry</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <pre><code><span class="comment">// Body del POST</span>
+{
+  <span class="key">"pair"</span>: <span class="str">"BTC/USDT"</span>, <span class="key">"direction"</span>: <span class="str">"LONG"</span>,
+  <span class="key">"entry"</span>: <span class="num">67842</span>, <span class="key">"sl"</span>: <span class="num">66824</span>, <span class="key">"tp"</span>: <span class="num">69877</span>,
+  <span class="key">"positionSize"</span>: <span class="num">0.0983</span>, <span class="key">"riskAmount"</span>: <span class="num">100</span>,
+  <span class="key">"riskPct"</span>: <span class="num">1</span>, <span class="key">"capital"</span>: <span class="num">10000</span>, <span class="key">"rr"</span>: <span class="num">2</span>,
+  <span class="key">"timestamp"</span>: <span class="num">1749200000000</span>
+}</code></pre>
+
+      <h3>Tabla SQLite</h3>
+      <p>Se crea automáticamente junto a la tabla <code>signals</code>, sin tocar lo existente:</p>
+      <pre><code><span class="kw">CREATE TABLE IF NOT EXISTS</span> position_calculations (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  pair          TEXT,
+  direction     TEXT,
+  entry         REAL,
+  sl            REAL,
+  tp            REAL,
+  position_size REAL,
+  risk_amount   REAL,
+  risk_pct      REAL,
+  capital       REAL,
+  rr            REAL,
+  timestamp     INTEGER
+);</code></pre>
+
+      <div class="callout callout-info">
+        <span class="callout-icon">ℹ️</span>
+        <span>Backend: el router <code>backend/src/routes/calculator.js</code> se monta en <code>index.js</code> con <code>app.use('/api/calculator', …)</code>. La función <code>saveCalculation()</code> vive en <code>db.js</code>.</span>
+      </div>
+    </section>
+
+    <!-- Calculadora: uso -->
+    <section id="calculadora-uso">
+      <h2>Uso</h2>
+
+      <h3>Inputs editables</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Input</th><th>Default</th><th>Nota</th></tr></thead>
+          <tbody>
+            <tr><td>Capital total (USD)</td><td><code>10.000</code></td><td>Persistido en localStorage</td></tr>
+            <tr><td>% Riesgo por operación</td><td><code>1%</code></td><td>Persistido en localStorage</td></tr>
+            <tr><td>Distancia SL (%)</td><td>según mercado</td><td>1.5 / 0.3 / 0.5 (crypto / forex / futuros)</td></tr>
+            <tr><td>Risk/Reward (RR)</td><td><code>2</code></td><td>—</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Comportamiento</h3>
+      <ul style="padding-left:1.25rem; color:#d1d5db; font-size:0.9rem; line-height:2">
+        <li>Los outputs se recalculan <strong>en tiempo real</strong> al cambiar cualquier input — no hay botón "calcular"</li>
+        <li>Capital y % de riesgo se <strong>persisten en localStorage</strong>, no hace falta reingresarlos</li>
+        <li>El panel es un <strong>sidebar derecho</strong> en desktop y un <strong>bottom sheet</strong> en mobile; se cierra con la X o tocando el fondo</li>
+        <li>Verde para LONG, rojo para SHORT — consistente con el resto del scanner</li>
+      </ul>
+
+      <h3>Resumen para el journal</h3>
+      <p>El botón "Copiar resumen" copia al portapapeles un texto listo para pegar:</p>
+      <pre><code>Par: BTC/USDT | LONG
+Entrada: 67,842.00
+SL: 66,824.37 (-1.5%)
+TP: 69,877.26 (+3.00%)
+Tamaño: 0.0983 BTC
+Riesgo: $100.00 (1% de $10,000.00)
+RR: 1:2</code></pre>
+
+      <div class="callout callout-tip">
+        <span class="callout-icon">💡</span>
+        <span>El panel se hizo en <strong>tema oscuro</strong> para matchear el resto de la app (el spec pedía fondo blanco, pero priorizamos la consistencia visual del scanner).</span>
       </div>
     </section>
 
